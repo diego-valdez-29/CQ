@@ -2,4 +2,4 @@
 __pycache__/
 *.pyc
 .env
-payload.json
+payload.jsoncalibracion/*.jsonl
