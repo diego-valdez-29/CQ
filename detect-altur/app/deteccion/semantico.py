@@ -1,4 +1,5 @@
 """app/deteccion/semantico.py — Detector semantico: honestidad vs confabulacion."""
+import concurrent.futures
 import json
 import os
 import re
@@ -164,4 +165,15 @@ class DetectorSemantico:
                 detalle={"metodo": "regex_honesto", "match": match},
             )
 
-        return self._clasificar_con_llm(transcript)
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        future = executor.submit(self._clasificar_con_llm, transcript)
+        try:
+            return future.result(timeout=3)
+        except concurrent.futures.TimeoutError:
+            return SenalScore(
+                nombre="semantico",
+                score=0.5,
+                detalle={"fallback": "timeout_pared"},
+            )
+        finally:
+            executor.shutdown(wait=False)
