@@ -38,6 +38,14 @@ document.addEventListener('DOMContentLoaded', () => {
     btnSampleAudio: document.getElementById('btnSampleAudio'),
     btnUploadWav: document.getElementById('btnUploadWav'),
 
+    // Llamada Simulada: fuente del canal 0 (caller)
+    sourceMic: document.getElementById('sourceMic'),
+    sourceTts: document.getElementById('sourceTts'),
+    ttsFileRow: document.getElementById('ttsFileRow'),
+    btnChooseTtsFile: document.getElementById('btnChooseTtsFile'),
+    ttsFileInput: document.getElementById('ttsFileInput'),
+    ttsFileLabel: document.getElementById('ttsFileLabel'),
+
     // Panel de Resultados
     resultIdle: document.getElementById('resultIdle'),
     resultAnalyzing: document.getElementById('resultAnalyzing'),
@@ -92,6 +100,11 @@ document.addEventListener('DOMContentLoaded', () => {
     lastResult: null,
     lastAudioBlob: null,
     history: [],
+
+    // Llamada Simulada
+    simulatedCallInFlight: false,
+    simulatedTtsFile: null,
+    simulatedTtsSamples: null,
   };
 
   elements.inputApiUrl.value = state.apiUrl;
@@ -194,76 +207,201 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // =========================================================================
-  // 6. Grabación de Micrófono en Vivo
+  // 6. Llamada Simulada (canal 0 = micrófono o archivo TTS, canal 1 = agente
+  //    de referencia). Reemplaza el flujo anterior de grabación mono, que se
+  //    deja comentado abajo (no se borra) por si hace falta volver a él.
+  //
+  //    EXPERIMENTAL, no representa el caso de uso real del reto: ver el
+  //    comentario detallado sobre buildSimulatedCallWav en audio-processor.js
+  //    y la nota visible en index.html. La estructura secuencial (agente
+  //    completo -> luego caller) casi siempre dispara el fallback neutro de
+  //    DetectorComportamiento (confidence=0.5) en vez de una clasificación
+  //    real, sin importar el contenido del caller -- probado en vivo contra
+  //    /detect.
   // =========================================================================
-  elements.btnRecord.addEventListener('click', async () => {
-    if (!state.isRecording) {
-      await startLiveRecording();
-    } else {
-      await stopLiveRecordingAndAnalyze();
+  function getSelectedCallerSource() {
+    return elements.sourceTts && elements.sourceTts.checked ? 'tts' : 'mic';
+  }
+
+  function formatTimer(seconds) {
+    const s = Math.max(0, Math.floor(seconds));
+    const mins = String(Math.floor(s / 60)).padStart(2, '0');
+    const secs = String(s % 60).padStart(2, '0');
+    return `${mins}:${secs}`;
+  }
+
+  elements.sourceMic.addEventListener('change', updateTtsFileRowVisibility);
+  elements.sourceTts.addEventListener('change', updateTtsFileRowVisibility);
+
+  function updateTtsFileRowVisibility() {
+    elements.ttsFileRow.style.display = getSelectedCallerSource() === 'tts' ? 'flex' : 'none';
+  }
+
+  elements.btnChooseTtsFile.addEventListener('click', () => {
+    elements.ttsFileInput.click();
+  });
+
+  elements.ttsFileInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    elements.ttsFileLabel.textContent = `Decodificando ${file.name}...`;
+    try {
+      const samples = await state.audioProcessor.decodeCallerFile(file);
+      state.simulatedTtsFile = file;
+      state.simulatedTtsSamples = samples;
+      const durationS = (samples.length / state.audioProcessor.targetSampleRate).toFixed(1);
+      elements.ttsFileLabel.textContent = `Listo: ${file.name} (${durationS}s)`;
+    } catch (err) {
+      state.simulatedTtsFile = null;
+      state.simulatedTtsSamples = null;
+      elements.ttsFileLabel.textContent = 'Error al decodificar el archivo TTS';
+      console.error('Error al decodificar archivo TTS:', err);
+      alert(`No se pudo decodificar el archivo de audio: ${err.message}`);
     }
   });
 
-  async function startLiveRecording() {
+  elements.btnRecord.addEventListener('click', async () => {
+    if (state.isRecording) {
+      await stopSimulatedCallMicAndSend();
+    } else if (!state.simulatedCallInFlight) {
+      await startSimulatedCall();
+    }
+  });
+
+  async function startSimulatedCall() {
+    const source = getSelectedCallerSource();
+    if (source === 'tts' && !state.simulatedTtsSamples) {
+      alert('Selecciona primero un archivo de audio TTS para usarlo como canal del caller.');
+      return;
+    }
+
+    state.simulatedCallInFlight = true;
+    elements.btnRecord.disabled = true;
+    elements.btnRecordText.textContent = 'Cargando audio de referencia del agente...';
+
     try {
-      await state.audioProcessor.startRecording();
-      state.isRecording = true;
-      state.recordStartTime = Date.now();
+      const agentDuration = await state.audioProcessor.loadAgentReference();
 
-      // Conectar visualizador al analyser
-      state.visualizer.connect(state.audioProcessor.analyser);
-
-      // Actualizar UI
-      elements.btnRecord.classList.add('recording');
-      elements.btnRecordText.textContent = 'Detener y Analizar Llamada';
       elements.timerRecDot.classList.add('active');
+      elements.btnRecordText.textContent = 'Agente hablando (simulado, sin audio)...';
+      elements.timerText.textContent = `Agente 00:00 / ${formatTimer(agentDuration)}`;
 
-      // Iniciar timer
-      elements.timerText.textContent = '00:00';
-      state.timerInterval = setInterval(() => {
-        const elapsedSec = Math.floor((Date.now() - state.recordStartTime) / 1000);
-        const mins = String(Math.floor(elapsedSec / 60)).padStart(2, '0');
-        const secs = String(elapsedSec % 60).padStart(2, '0');
-        elements.timerText.textContent = `${mins}:${secs}`;
-      }, 500);
+      await state.audioProcessor.waitForDuration(agentDuration, (elapsed) => {
+        elements.timerText.textContent = `Agente ${formatTimer(elapsed)} / ${formatTimer(agentDuration)}`;
+      });
 
+      if (source === 'mic') {
+        await state.audioProcessor.startCallerMicCapture();
+        state.isRecording = true;
+        state.recordStartTime = Date.now();
+        state.visualizer.connect(state.audioProcessor.analyser);
+
+        elements.btnRecord.classList.add('recording');
+        elements.btnRecord.disabled = false;
+        elements.btnRecordText.textContent = 'Detener y Analizar Llamada Simulada';
+
+        state.timerInterval = setInterval(() => {
+          const elapsedSec = (Date.now() - state.recordStartTime) / 1000;
+          elements.timerText.textContent = `Caller ${formatTimer(elapsedSec)}`;
+        }, 500);
+      } else {
+        // Fuente TTS: el archivo ya esta decodificado, se usa directo como canal 0 sin grabar nada.
+        elements.timerRecDot.classList.remove('active');
+        const built = state.audioProcessor.buildSimulatedCallWav(state.simulatedTtsSamples);
+        const base64 = await state.audioProcessor.arrayBufferToBase64(built.wavBuffer);
+
+        state.simulatedCallInFlight = false;
+        elements.btnRecord.disabled = false;
+        elements.btnRecordText.textContent = 'Simular Llamada';
+
+        await sendAudioForDetection(base64, built.blob, built.durationSeconds, `Llamada Simulada (TTS: ${state.simulatedTtsFile.name})`);
+      }
     } catch (err) {
-      console.error('Error al iniciar grabación:', err);
-      alert(`No se pudo acceder al micrófono: ${err.message}. Asegúrate de conceder permisos de audio.`);
+      state.simulatedCallInFlight = false;
+      elements.btnRecord.disabled = false;
+      elements.timerRecDot.classList.remove('active');
+      elements.btnRecordText.textContent = 'Simular Llamada';
+      console.error('Error al simular la llamada:', err);
+      alert(`Error al simular la llamada: ${err.message}`);
     }
   }
 
-  async function stopLiveRecordingAndAnalyze() {
+  async function stopSimulatedCallMicAndSend() {
     if (!state.isRecording) return;
 
-    // Detener timer
     clearInterval(state.timerInterval);
     elements.timerRecDot.classList.remove('active');
     elements.btnRecord.classList.remove('recording');
     elements.btnRecordText.textContent = 'Procesando Audio...';
-
-    // Desconectar visualizador
     state.visualizer.disconnect();
 
     try {
-      // Obtener audio remuestreado a 8kHz y Base64
-      const audioData = await state.audioProcessor.stopRecording();
+      const callerSamples = await state.audioProcessor.stopCallerMicCapture();
       state.isRecording = false;
-      elements.btnRecordText.textContent = 'Iniciar Grabación de Llamada';
+      state.simulatedCallInFlight = false;
+      elements.btnRecordText.textContent = 'Simular Llamada';
 
-      if (audioData.durationSeconds < 0.5) {
-        alert('La grabación es demasiado corta. Graba al menos 1 o 2 segundos de voz para analizar.');
-        return;
-      }
-
-      await sendAudioForDetection(audioData.base64, audioData.blob, audioData.durationSeconds, 'Micrófono en vivo');
+      const built = state.audioProcessor.buildSimulatedCallWav(callerSamples);
+      const base64 = await state.audioProcessor.arrayBufferToBase64(built.wavBuffer);
+      await sendAudioForDetection(base64, built.blob, built.durationSeconds, 'Llamada Simulada (Micrófono)');
     } catch (err) {
       state.isRecording = false;
-      elements.btnRecordText.textContent = 'Iniciar Grabación de Llamada';
-      console.error('Error al procesar audio:', err);
-      alert(`Error al procesar el audio: ${err.message}`);
+      state.simulatedCallInFlight = false;
+      elements.btnRecordText.textContent = 'Simular Llamada';
+      console.error('Error al procesar la llamada simulada:', err);
+      alert(`Error al procesar la llamada simulada: ${err.message}`);
     }
   }
+
+  // --- Flujo anterior (grabación mono, sin canal de agente real) ---
+  // conservado sin usar, por si hace falta volver a el:
+  //
+  // async function startLiveRecording() {
+  //   try {
+  //     await state.audioProcessor.startRecording();
+  //     state.isRecording = true;
+  //     state.recordStartTime = Date.now();
+  //     state.visualizer.connect(state.audioProcessor.analyser);
+  //     elements.btnRecord.classList.add('recording');
+  //     elements.btnRecordText.textContent = 'Detener y Analizar Llamada';
+  //     elements.timerRecDot.classList.add('active');
+  //     elements.timerText.textContent = '00:00';
+  //     state.timerInterval = setInterval(() => {
+  //       const elapsedSec = Math.floor((Date.now() - state.recordStartTime) / 1000);
+  //       const mins = String(Math.floor(elapsedSec / 60)).padStart(2, '0');
+  //       const secs = String(elapsedSec % 60).padStart(2, '0');
+  //       elements.timerText.textContent = `${mins}:${secs}`;
+  //     }, 500);
+  //   } catch (err) {
+  //     console.error('Error al iniciar grabación:', err);
+  //     alert(`No se pudo acceder al micrófono: ${err.message}. Asegúrate de conceder permisos de audio.`);
+  //   }
+  // }
+  //
+  // async function stopLiveRecordingAndAnalyze() {
+  //   if (!state.isRecording) return;
+  //   clearInterval(state.timerInterval);
+  //   elements.timerRecDot.classList.remove('active');
+  //   elements.btnRecord.classList.remove('recording');
+  //   elements.btnRecordText.textContent = 'Procesando Audio...';
+  //   state.visualizer.disconnect();
+  //   try {
+  //     const audioData = await state.audioProcessor.stopRecording();
+  //     state.isRecording = false;
+  //     elements.btnRecordText.textContent = 'Iniciar Grabación de Llamada';
+  //     if (audioData.durationSeconds < 0.5) {
+  //       alert('La grabación es demasiado corta. Graba al menos 1 o 2 segundos de voz para analizar.');
+  //       return;
+  //     }
+  //     await sendAudioForDetection(audioData.base64, audioData.blob, audioData.durationSeconds, 'Micrófono en vivo');
+  //   } catch (err) {
+  //     state.isRecording = false;
+  //     elements.btnRecordText.textContent = 'Iniciar Grabación de Llamada';
+  //     console.error('Error al procesar audio:', err);
+  //     alert(`Error al procesar el audio: ${err.message}`);
+  //   }
+  // }
 
   // =========================================================================
   // 7. Subida y Procesamiento de Archivos WAV

@@ -162,20 +162,37 @@
           </div>
         </div>
 
+        <!--
+          FLAG DE DEMO (mañana): el bloque de "Llamada Simulada" (tab
+          Micrófono, visualizador/timer, selector de fuente TTS/mic y el
+          botón "Simular Llamada") queda oculto con la clase
+          "hidden-for-demo" (ver style.css) por dos motivos:
+            1. is_synthetic siempre cae en el fallback neutro (confidence=0.5)
+               sin importar el audio de entrada -- ver el comentario en
+               buildSimulatedCallWav (audio-processor.js) y la nota que
+               reemplaza.
+            2. Requiere esperar los ~153s completos del audio de referencia
+               del agente antes de producir cualquier resultado, inviable
+               para una demo en vivo con tiempo limitado.
+          El código sigue intacto: para reactivarlo, quitar "hidden-for-demo"
+          de estos elementos y volver a poner tabFile/fileDropArea en su
+          estado no-activo por defecto si se desea el flujo mixto original.
+        -->
+
         <!-- Selector de Modos -->
         <div class="mode-tabs">
-          <button type="button" class="tab-btn active" id="tabMic">
+          <button type="button" class="tab-btn hidden-for-demo" id="tabMic">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/></svg>
             Micrófono en Vivo
           </button>
-          <button type="button" class="tab-btn" id="tabFile">
+          <button type="button" class="tab-btn active" id="tabFile">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>
             Subir / Probar WAV
           </button>
         </div>
 
-        <!-- Área del Visualizador Canvas -->
-        <div class="visualizer-container">
+        <!-- Área del Visualizador Canvas (solo usada por la Llamada Simulada, oculta para la demo) -->
+        <div class="visualizer-container hidden-for-demo">
           <canvas id="visualizerCanvas" class="visualizer-canvas"></canvas>
           <div class="visualizer-overlay-info">
             <div class="recording-timer" id="recordingTimer">
@@ -186,21 +203,58 @@
           </div>
         </div>
 
-        <!-- Zona Drag & Drop para archivos (oculta en modo mic) -->
-        <div class="file-drop-area" id="fileDropArea">
+        <!-- Zona Drag & Drop para archivos (flujo de demo, visible por defecto) -->
+        <div class="file-drop-area active" id="fileDropArea">
           <svg class="file-drop-icon" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
           <p style="font-size: 0.9rem; font-weight: 500; margin-bottom: 0.25rem;">Arrastra aquí un archivo de audio WAV / MP3</p>
           <p style="font-size: 0.78rem; color: var(--text-muted);">Se convertirá automáticamente al estándar telefónico de 8 kHz</p>
         </div>
         <input type="file" id="fileInput" accept="audio/*,.wav" style="display: none;" />
 
+        <!-- Fuente del canal 0 (caller) para la Llamada Simulada -- oculta para la demo, ver flag arriba -->
+        <div class="simulated-call-source-row hidden-for-demo" id="simulatedCallSourceRow" style="display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 0.75rem;">
+          <span class="badge-result experimental" style="align-self: flex-start;">Experimental</span>
+          <div class="experimental-warning-note">
+            <span>⚠️</span>
+            <span>
+              No representa el caso de uso real del reto: reproduce el turno completo del
+              agente y recién después arranca el turno del caller, sin turnos intercalados
+              reales. La señal <code style="color: var(--altur-cyan);">comportamiento</code>
+              necesita al menos 2 eventos de recuperación agente→caller distribuidos a lo
+              largo de la llamada para dar un veredicto real; con esta estructura secuencial
+              casi siempre cae en el fallback neutro (<code style="color: var(--altur-cyan);">confidence=0.5</code>,
+              <code style="color: var(--altur-cyan);">is_synthetic=false</code>) sin importar
+              si el audio del caller es humano o sintético. Útil para probar el formato WAV
+              estéreo enviado a <code style="color: var(--altur-cyan);">/detect</code>, no para
+              demostrar una detección real.
+            </span>
+          </div>
+          <div style="display: flex; gap: 1rem; font-size: 0.82rem;">
+            <label style="display: flex; align-items: center; gap: 0.35rem; cursor: pointer;">
+              <input type="radio" name="callerSource" id="sourceMic" value="mic" checked />
+              Hablar por micrófono
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.35rem; cursor: pointer;">
+              <input type="radio" name="callerSource" id="sourceTts" value="tts" />
+              Simular con audio generado por IA (TTS)
+            </label>
+          </div>
+          <div id="ttsFileRow" style="display: none; align-items: center; gap: 0.5rem;">
+            <button type="button" class="btn-secondary" id="btnChooseTtsFile" style="padding: 0.3rem 0.6rem; font-size: 0.78rem;">
+              Elegir archivo TTS
+            </button>
+            <span id="ttsFileLabel" style="font-size: 0.78rem; color: var(--text-muted);">Ningún archivo seleccionado</span>
+            <input type="file" id="ttsFileInput" accept="audio/*" style="display: none;" />
+          </div>
+        </div>
+
         <!-- Botones de Acción -->
         <div class="control-actions-group">
-          <button type="button" class="main-record-btn" id="btnRecord">
+          <button type="button" class="main-record-btn hidden-for-demo" id="btnRecord" title="Experimental: no representa el caso de uso real del reto (ver nota arriba)">
             <svg viewBox="0 0 24 24">
               <circle cx="12" cy="12" r="8"/>
             </svg>
-            <span id="btnRecordText">Iniciar Grabación de Llamada</span>
+            <span id="btnRecordText">Simular Llamada (Experimental)</span>
           </button>
 
           <div class="secondary-actions-row">

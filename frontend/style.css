@@ -1169,6 +1169,36 @@ body {
   border: 1px solid rgba(244, 63, 94, 0.3);
 }
 
+/* FLAG DE DEMO: oculta temporalmente el bloque de "Llamada Simulada" para la
+   demo en vivo (audio de referencia del agente dura 153s antes de dar
+   cualquier resultado, e is_synthetic siempre cae en el fallback neutro sin
+   importar el audio de entrada -- ver comentario en buildSimulatedCallWav en
+   audio-processor.js). Código intacto debajo; para reactivar, quitar esta
+   clase de los elementos en index.html. */
+.hidden-for-demo {
+  display: none !important;
+}
+
+.badge-result.experimental {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.experimental-warning-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.55rem 0.75rem;
+  margin-bottom: 0.75rem;
+  border-radius: var(--radius-sm);
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
 /* Footer Altur */
 .footer-altur {
   margin-top: 4rem;
