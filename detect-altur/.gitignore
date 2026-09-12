@@ -4,3 +4,7 @@ __pycache__/
 .env
 payload.jsoncalibracion/*.jsonl
 calibracion/*.jsonl
+calibracion/audio_estres/
+calibracion/modelos_aasist/
+calibracion/audio_estres/
+calibracion/modelos_aasist/
