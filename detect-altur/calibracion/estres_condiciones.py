@@ -29,6 +29,12 @@ el original, y al final cuantas de las 10 llamadas cambiaron de
 clasificacion bajo cada tipo de degradacion — esa cuenta es la metrica de
 robustez ante condiciones no vistas en calibracion.
 
+Cada WAV degradado se guarda en --audio-salida-dir (por defecto
+calibracion/audio_estres/<anon_id>_<tipo>.wav, p.ej.
+call_0e1e2f29bfdc_ruido.wav) en vez de un directorio temporal descartable,
+para poder reusarlos como demo en el frontend. No cambia como se generan
+ni se evaluan, solo donde quedan.
+
 No modifica fusion.py, main.py ni ningun peso.
 
 Uso tipico:
@@ -60,6 +66,7 @@ MUESTRA = 10
 SEMILLA = 0
 SNR_DB = 20.0
 NOMBRES_DEGRADACIONES = ("ruido", "codec_agresivo", "downsample_extra")
+AUDIO_SALIDA_DIR_POR_DEFECTO = Path(__file__).resolve().parent / "audio_estres"
 
 
 def _correr_ffmpeg(args: list[str]) -> None:
@@ -176,7 +183,9 @@ def evaluar_version(detector: DetectorComportamiento, ruta: Path) -> dict:
     return {"score": senal.score, "confidence": resultado.confidence, "is_synthetic": resultado.is_synthetic}
 
 
-def procesar_llamada(detector: DetectorComportamiento, fila: dict, audio_dir: Path) -> dict | None:
+def procesar_llamada(
+    detector: DetectorComportamiento, fila: dict, audio_dir: Path, audio_salida_dir: Path
+) -> dict | None:
     anon_id = fila["anon_id"]
     ruta_original = audio_dir / f"{anon_id}.wav"
     if not ruta_original.exists():
@@ -186,11 +195,13 @@ def procesar_llamada(detector: DetectorComportamiento, fila: dict, audio_dir: Pa
     resultados = {}
     try:
         resultados["original"] = evaluar_version(detector, ruta_original)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            for nombre in NOMBRES_DEGRADACIONES:
-                ruta_degradada = Path(tmpdir) / f"{nombre}.wav"
-                generar_version(nombre, ruta_original, ruta_degradada, anon_id)
-                resultados[nombre] = evaluar_version(detector, ruta_degradada)
+        for nombre in NOMBRES_DEGRADACIONES:
+            # Se guarda en audio_salida_dir (no en un directorio temporal) para
+            # poder reusar estos WAVs como demo en el frontend -- no cambia
+            # como se generan ni se evaluan, solo donde quedan.
+            ruta_degradada = audio_salida_dir / f"{anon_id}_{nombre}.wav"
+            generar_version(nombre, ruta_original, ruta_degradada, anon_id)
+            resultados[nombre] = evaluar_version(detector, ruta_degradada)
     except Exception as exc:
         print(f"  {anon_id}: FALLO ({exc!r}), se omite")
         return None
@@ -229,13 +240,18 @@ def main() -> None:
     parser.add_argument("--audio-dir", default="/home/andres/hackmty26/audio")
     parser.add_argument("--muestra", type=int, default=MUESTRA)
     parser.add_argument("--semilla", type=int, default=SEMILLA)
+    parser.add_argument("--audio-salida-dir", default=str(AUDIO_SALIDA_DIR_POR_DEFECTO))
     args = parser.parse_args()
+
+    audio_salida_dir = Path(args.audio_salida_dir)
+    audio_salida_dir.mkdir(parents=True, exist_ok=True)
 
     filas_val = leer_manifest(Path(args.manifest), split="val")
     print(f"Llamadas en split=val: {len(filas_val)}")
 
     muestra = muestrear_balanceado(filas_val, args.muestra, args.semilla)
     print(f"Muestra balanceada: {len(muestra)} llamadas ({args.muestra // 2} human / {args.muestra // 2} synthetic)")
+    print(f"WAVs degradados se guardan en: {audio_salida_dir}")
 
     if muestra:
         primera = muestra[0]
@@ -248,7 +264,7 @@ def main() -> None:
     detector = DetectorComportamiento()
     registros = []
     for fila in muestra:
-        registro = procesar_llamada(detector, fila, Path(args.audio_dir))
+        registro = procesar_llamada(detector, fila, Path(args.audio_dir), audio_salida_dir)
         if registro is not None:
             registros.append(registro)
             reportar_llamada(registro)
