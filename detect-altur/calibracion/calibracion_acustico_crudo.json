@@ -1,0 +1,182 @@
+[
+  {
+    "anon_id": "call_e69e8ba551e4",
+    "label": "human",
+    "varianza_mfcc": 17529.501953125,
+    "regularidad_espectral": 0.18834104683475494
+  },
+  {
+    "anon_id": "call_e118b75d4937",
+    "label": "human",
+    "varianza_mfcc": 15330.6025390625,
+    "regularidad_espectral": 0.00747356638987948
+  },
+  {
+    "anon_id": "call_db5326bcb672",
+    "label": "human",
+    "varianza_mfcc": 16498.44921875,
+    "regularidad_espectral": 0.000653964410316866
+  },
+  {
+    "anon_id": "call_0a9c546208d1",
+    "label": "human",
+    "varianza_mfcc": 20049.505859375,
+    "regularidad_espectral": 0.0010929063489108174
+  },
+  {
+    "anon_id": "call_60ffdefc5f5a",
+    "label": "human",
+    "varianza_mfcc": 15696.255859375,
+    "regularidad_espectral": 0.5512051910470679
+  },
+  {
+    "anon_id": "call_893d552b156a",
+    "label": "human",
+    "varianza_mfcc": 15325.6083984375,
+    "regularidad_espectral": 8.172647171497893e-07
+  },
+  {
+    "anon_id": "call_b41c86402714",
+    "label": "human",
+    "varianza_mfcc": 14735.63671875,
+    "regularidad_espectral": 0.00022887685116905726
+  },
+  {
+    "anon_id": "call_36640e327eaf",
+    "label": "human",
+    "varianza_mfcc": 17958.125,
+    "regularidad_espectral": 0.06666614288450112
+  },
+  {
+    "anon_id": "call_4ac92327c83b",
+    "label": "human",
+    "varianza_mfcc": 15856.8564453125,
+    "regularidad_espectral": 0.07786907913336247
+  },
+  {
+    "anon_id": "call_3ca96b2dd5c4",
+    "label": "human",
+    "varianza_mfcc": 16217.1640625,
+    "regularidad_espectral": 0.0021156630234177285
+  },
+  {
+    "anon_id": "call_ed041799aed9",
+    "label": "human",
+    "varianza_mfcc": 12773.5556640625,
+    "regularidad_espectral": 0.0008214502009579915
+  },
+  {
+    "anon_id": "call_d557fa43925b",
+    "label": "human",
+    "varianza_mfcc": 15539.1259765625,
+    "regularidad_espectral": 0.0024717931295241955
+  },
+  {
+    "anon_id": "call_3adbf4ac0f30",
+    "label": "human",
+    "varianza_mfcc": 10654.55078125,
+    "regularidad_espectral": 0.0007657510609522921
+  },
+  {
+    "anon_id": "call_b5c4803ea37c",
+    "label": "human",
+    "varianza_mfcc": 19611.703125,
+    "regularidad_espectral": 0.0002813258988129853
+  },
+  {
+    "anon_id": "call_8a61615c9927",
+    "label": "human",
+    "varianza_mfcc": 18167.318359375,
+    "regularidad_espectral": 0.05204022062247054
+  },
+  {
+    "anon_id": "call_81b12145be34",
+    "label": "synthetic",
+    "varianza_mfcc": 13877.8994140625,
+    "regularidad_espectral": 0.008252318582394754
+  },
+  {
+    "anon_id": "call_ed99e3ea3f0e",
+    "label": "synthetic",
+    "varianza_mfcc": 15403.8251953125,
+    "regularidad_espectral": 0.009433635335751311
+  },
+  {
+    "anon_id": "call_8c2ebe3761bb",
+    "label": "synthetic",
+    "varianza_mfcc": 12956.2666015625,
+    "regularidad_espectral": 0.009786645028876903
+  },
+  {
+    "anon_id": "call_dcdbcc7d70e4",
+    "label": "synthetic",
+    "varianza_mfcc": 20730.306640625,
+    "regularidad_espectral": 0.0027511006989857758
+  },
+  {
+    "anon_id": "call_01c3806808d6",
+    "label": "synthetic",
+    "varianza_mfcc": 18461.7890625,
+    "regularidad_espectral": 0.007940751596357166
+  },
+  {
+    "anon_id": "call_d88d8e15e430",
+    "label": "synthetic",
+    "varianza_mfcc": 13747.4521484375,
+    "regularidad_espectral": 0.006875665487102577
+  },
+  {
+    "anon_id": "call_a7df1d46e72b",
+    "label": "synthetic",
+    "varianza_mfcc": 17654.36328125,
+    "regularidad_espectral": 0.006868198526083257
+  },
+  {
+    "anon_id": "call_c67ce09b3316",
+    "label": "synthetic",
+    "varianza_mfcc": 21176.0390625,
+    "regularidad_espectral": 0.009729610418276129
+  },
+  {
+    "anon_id": "call_387c5493a07f",
+    "label": "synthetic",
+    "varianza_mfcc": 17783.28125,
+    "regularidad_espectral": 0.007750257510324037
+  },
+  {
+    "anon_id": "call_f68d3459fdc7",
+    "label": "synthetic",
+    "varianza_mfcc": 15126.2314453125,
+    "regularidad_espectral": 0.0071186014119525645
+  },
+  {
+    "anon_id": "call_b0836ff3142a",
+    "label": "synthetic",
+    "varianza_mfcc": 15306.1279296875,
+    "regularidad_espectral": 0.015935766806457637
+  },
+  {
+    "anon_id": "call_ce6146a1c53e",
+    "label": "synthetic",
+    "varianza_mfcc": 9865.6220703125,
+    "regularidad_espectral": 0.007895507484540607
+  },
+  {
+    "anon_id": "call_ff4042587962",
+    "label": "synthetic",
+    "varianza_mfcc": 14457.7998046875,
+    "regularidad_espectral": 0.015521771157308888
+  },
+  {
+    "anon_id": "call_18bd3c505fd5",
+    "label": "synthetic",
+    "varianza_mfcc": 17257.064453125,
+    "regularidad_espectral": 0.007947509758866034
+  },
+  {
+    "anon_id": "call_8e6c9fa78a21",
+    "label": "synthetic",
+    "varianza_mfcc": 17234.64453125,
+    "regularidad_espectral": 0.01071663435298694
+  }
+]

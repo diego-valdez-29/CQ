@@ -21,12 +21,19 @@ import argparse
 import csv
 import json
 import random
+import sys
 import time
 from pathlib import Path
 
 import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, confusion_matrix, roc_curve
+
+# Este script vive en calibracion/, pero "app" esta un nivel arriba (raiz del
+# proyecto). Python solo agrega el directorio del propio script a sys.path,
+# no el cwd, asi que sin esto el import de abajo falla al correrlo desde
+# fuera de calibracion/.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.deteccion.acustico import DetectorAcustico
 from app.deteccion.comportamiento import DetectorComportamiento
@@ -40,6 +47,7 @@ PESOS_ACTUALES = {"acustico": 1.0, "comportamiento": 1.0, "semantico": 1.0}
 UMBRAL_ACTUAL = 0.5
 
 MUESTRA_POR_DEFECTO = 80
+SALIDA_POR_DEFECTO = Path(__file__).resolve().parent / "calibracion_resultados.jsonl"
 
 
 def leer_manifest(ruta_manifest: Path, split: str) -> list[dict]:
@@ -274,7 +282,7 @@ def main() -> None:
     )
     parser.add_argument("--manifest", default="/home/andres/hackmty26/manifest.csv")
     parser.add_argument("--audio-dir", default="/home/andres/hackmty26/audio")
-    parser.add_argument("--salida", default="calibracion_resultados.jsonl")
+    parser.add_argument("--salida", default=str(SALIDA_POR_DEFECTO))
     parser.add_argument(
         "--muestra",
         type=int,
