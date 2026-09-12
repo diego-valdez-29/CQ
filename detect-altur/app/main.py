@@ -23,8 +23,8 @@ detectores = [
 ]
 
 fusion = Fusion(
-    pesos={"acustico": 1.0, "comportamiento": 1.0, "semantico": 1.0},
-    umbral=0.5,
+    pesos={"acustico": 0.0, "comportamiento": 1.0, "semantico": 0.0},
+    umbral=0.56,
 )
 
 # Checkpoints de decision secuencial, calibrados contra llamadas reales del

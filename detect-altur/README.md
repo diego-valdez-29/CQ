@@ -34,32 +34,35 @@ Respuesta:
 
 - **Acústico** (`app/deteccion/acustico.py`): heurística sobre MFCCs del canal del caller (varianza y regularidad espectral), normalizada por z-score y pasada por sigmoide. Es un *fallback*: no hay certeza del checkpoint exacto de un modelo tipo AASIST, así que se usa esta heurística en su lugar.
 - **Comportamiento** (`app/deteccion/comportamiento.py`): mide qué tan *consistente* es el tiempo que tarda el caller en retomar el habla después de que el agente provoca un silencio largo o un atropello. Recuperación muy uniforme (std baja) se interpreta como sospechosa de máquina; un humano se recupera de forma más errática.
-- **Semántico** (`app/deteccion/semantico.py`): transcribe el canal del caller con Whisper y busca honestidad ante preguntas trampa (información que no existe). Si el transcript ya dice algo tipo "no sé"/"no tengo esa información" (regex), se resuelve como humano sin llamar al LLM. Si no, se manda a un LLM (la Spark, vía Tailscale) a clasificar si la respuesta suena a dato inventado (confabulación → sintético).
+- **Semántico** (`app/deteccion/semantico.py`): transcribe el canal del caller con Whisper y busca honestidad ante preguntas trampa (información que no existe). Si el transcript dice algo tipo "no sé"/"no tengo esa información" (regex), se resuelve como humano (`score=0.15`) sin llamar a ningún LLM. Si no, retorna directamente el score neutro (`score=0.5`) — **ya no llama a ningún LLM** (ver sección de calibración: la señal quedó con peso 0 en la fusión final). El cliente LLM (antes: la Spark, vía Tailscale) se conserva sin usar en `calibracion/semantico_llm_experimento.py`.
 
-**Fusión**: promedio ponderado de las tres señales (`app/deteccion/fusion.py`). Los pesos en producción son un *placeholder* `{acustico: 1.0, comportamiento: 1.0, semantico: 1.0}` con umbral `0.5` — **no** los pesos que salen de la calibración (ver siguiente sección).
+**Fusión**: promedio ponderado de las tres señales (`app/deteccion/fusion.py`). Los pesos en producción son los de la **calibración final** (ver siguiente sección): `{acustico: 0.0, comportamiento: 1.0, semantico: 0.0}` con umbral `0.56`.
 
 **Decisión secuencial**: en vez de esperar la llamada completa, se evalúa en checkpoints de **25s** y **40s** de audio; si la confidence en un checkpoint cruza `UMBRAL_DECISION_TEMPRANA = 0.75`, se responde ahí sin esperar más. Si ningún checkpoint cruza el umbral, decide al final de la llamada.
 
 ## Estado honesto de calibración
 
-Se validó contra una muestra balanceada de **n=30 llamadas reales** (15 humanas / 15 sintéticas) del split `train` del dataset del reto (`manifest.csv`, 353 llamadas reales en total; `train` tiene 282). Resultados en [`calibracion/calibracion_resultados_v2.jsonl`](calibracion/calibracion_resultados_v2.jsonl), reproducibles corriendo el propio `calibrar.py` sobre ese archivo:
+**Calibración final** (post-fix del timeout de pared, ver historial de commits): muestra balanceada de **n=60 llamadas reales** (30 humanas / 30 sintéticas) del split `train` del dataset del reto (`manifest.csv`, 353 llamadas reales en total; `train` tiene 282). Pesos y umbral confirmados en **3 calibraciones independientes** con datos reales:
 
-| Señal | media humano | media sintético | \|diff\| |
-|---|---|---|---|
-| acústico | 0.526 | 0.446 | 0.080 |
-| comportamiento | 0.044 | 0.012 | 0.032 |
-| semántico | 0.453 | 0.477 | 0.023 |
+```
+pesos  = {"acustico": 0.0, "comportamiento": 1.0, "semantico": 0.0}
+umbral = 0.56
+```
 
-Ninguna de las tres separa bien en esta muestra, y las dos primeras separan **al revés** de la convención (score más alto = más sintético): la regresión logística de calibración les asigna coeficiente negativo, así que `calibrar_pesos()` les pone peso 0 y deja todo el peso en semántico (que a su vez es poco informativa en esta corrida — ver abajo). Con los pesos calibrados así (`acustico=0, comportamiento=0, semantico=1.0`, umbral 0.15): accuracy 53.3%, EER 46.7% en la propia muestra de calibración. Con los pesos placeholder que sí están en producción (1/1/1, umbral 0.5): accuracy 46.7%, EER 56.7% — peor que adivinar al azar.
+Con estos pesos, sobre la propia muestra de calibración:
 
-Por señal, específicamente:
+- **Accuracy: 0.833**
+- **EER: 0.183**
+- **Matriz de confusión** `[[TN, FP], [FN, TP]] = [[22, 8], [2, 28]]`
 
-- **Semántico** estuvo casi todo el tiempo en su valor neutro de fallback (`score=0.5`, `llm_no_disponible`) en **27 de las 30 llamadas** — la corrida de calibración no tuvo acceso confiable a la Spark. Solo 3 llamadas resolvieron por el filtro regex (`score=0.15`). Es decir: la señal semántica está prácticamente sin validar con el LLM real; lo único probado es su ruta de fallback.
-- **Comportamiento** saturó en `score=0.0` en 12/15 llamadas humanas y 14/15 sintéticas — casi sin separación, señal débil documentada también en el propio código (`ESCALA_NORMALIZACION_STD` sin calibrar contra dataset real).
-- **Acústico** es la única señal con algo de rango, pero con separación débil y en la dirección incorrecta, documentado en el código como señal secundaria no decisiva por sí sola (`separacion_debil: True` en el detalle de cada respuesta).
-- Con los pesos calibrados, **0 de las 30 llamadas** habrían cruzado el umbral de decisión temprana (`0.75`) en los checkpoints de 25s/40s — la decisión temprana nunca se disparó en esta muestra.
+Es decir: la señal que realmente decide es **comportamiento** — es la única que separó human/sintético de forma consistente y en la dirección correcta a través de las 3 corridas. `acústico` y `semántico` quedaron en **peso 0**, no porque no se probaran, sino porque se probaron con datos reales y no aportaron:
 
-En resumen: el pipeline corre de punta a punta y el contrato del endpoint está probado, pero la calidad de la clasificación en sí **no está validada** contra el dataset real con los pesos que corren en producción — ver Limitaciones.
+- **Semántico**: se probó tanto con el LLM de la Spark (vía Tailscale) como con OpenAI `gpt-4o-mini` (`calibracion/probar_semantico_openai.py`). Ninguno de los dos separó humano/sintético lo suficiente como para justificar la latencia y el riesgo de una llamada de red síncrona dentro de `/detect`. El código del cliente LLM se conservó, sin usar, en `calibracion/semantico_llm_experimento.py`. En producción, esta señal ahora solo corre el filtro regex de honestidad (gratis, sin red) y cae a un score neutro (`0.5`) si no resuelve — ver `app/deteccion/semantico.py`.
+- **Acústico**: la heurística MFCC (`app/deteccion/acustico.py`) y la alternativa wav2vec2 (`calibracion/acustico_wav2vec.py`) se probaron ambas contra datos reales; ninguna separó de forma confiable en telefonía de 8kHz (ver `calibracion/calibracion_acustico_wav2vec.json` y `calibracion/calibracion_comportamiento_crudo.json`).
+
+Con los pesos de decisión temprana calibrados (`UMBRAL_DECISION_TEMPRANA = 0.75`), el checkpoint temprano (25s/40s) se disparó en **3.3% de las llamadas** — comportamiento conservador y razonable: la decisión temprana existe pero no se dispara de forma agresiva, así que la mayoría de las llamadas se deciden con la señal completa.
+
+En resumen: `acústico` y `semántico` son señales **exploradas y descartadas con evidencia real**, no señales sin intentar — el pipeline final es deliberadamente más simple (una sola señal decisiva) que el diseño original de tres señales ponderadas por igual.
 
 ## Cómo correrlo
 
@@ -68,14 +71,10 @@ cd detect-altur
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-cp .env.example .env   # y llenar SPARK_API_KEY
-
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-Variables de entorno (ver `.env.example`):
-
-- `SPARK_API_KEY` — token para el LLM de la señal semántica (`http://100.122.49.1:8080/api`, alcanzable por Tailscale). Si no está seteada o la Spark no responde, la señal semántica cae a su fallback neutro (`score=0.5`), no truena el request.
+El pipeline de producción (`app/main.py`) **no requiere ninguna variable de entorno**: la señal semántica ya no llama a ningún LLM (ver sección de calibración). `SPARK_API_KEY` (ver `.env.example`) solo la usa `calibracion/semantico_llm_experimento.py`, el cliente LLM conservado como referencia fuera del pipeline.
 
 Ejemplo con `/detect` (base64):
 
@@ -97,11 +96,10 @@ Pendiente de definir cómo se expone la URL pública para que los jueces la llam
 
 ## Limitaciones conocidas
 
-- **Dependencia de la Spark**: la señal semántica depende de un LLM externo alcanzable solo por Tailscale, con timeout de 2s. Si no está disponible cae a `score=0.5` (neutro) — el pipeline no falla, pero pierde la señal más prometedora conceptualmente. En la calibración esto pasó en 27/30 llamadas.
-- **Señal acústica débil en 8kHz**: validado con datos reales (n=30) — la heurística MFCC no separa bien humano/sintético en telefonía de 8kHz, y en esta muestra separa en la dirección contraria a la esperada. No debe tratarse como decisiva.
-- **Señal de comportamiento sin calibrar**: `ESCALA_NORMALIZACION_STD` es un valor de partida sin ajustar contra el dataset real; en la validación satura en 0.0 para la gran mayoría de llamadas de ambas clases.
-- **Pesos de fusión en producción no son los calibrados**: `app/main.py` sigue usando el placeholder `1/1/1` con umbral `0.5`, no los pesos que salen de `calibrar_pesos()`. Aplicar los pesos calibrados de esta muestra (que ponen todo el peso en semántico) sería sobreajustar a n=30 con la Spark mayormente caída — no se recomienda sin recalibrar con la Spark disponible.
-- **Decisión secuencial (checkpoints 25s/40s) sin validar con pesos finales**: en la única corrida de calibración disponible, la decisión temprana nunca se disparó (0/30). No se sabe si dispara de forma razonable con los pesos que realmente corran en el juez.
+- **Una sola señal decisiva**: con `acustico` y `semantico` en peso 0, la clasificación final depende enteramente de `comportamiento`. Está calibrada y validada contra n=60 reales (accuracy 0.833, EER 0.183), pero es una sola fuente de evidencia — no hay redundancia si esa señal falla o se comporta distinto en el dataset real de los jueces.
+- **Señal acústica descartada, no arreglada**: tanto la heurística MFCC (`app/deteccion/acustico.py`) como la alternativa wav2vec2 (`calibracion/acustico_wav2vec.py`) se probaron con datos reales y no separaron de forma confiable en telefonía de 8kHz. El código sigue corriendo en el pipeline (con peso 0, no afecta el resultado) por si se quiere reintentar más adelante con otro enfoque.
+- **Señal semántica descartada, no arreglada**: se probó tanto el LLM de la Spark como OpenAI `gpt-4o-mini`; ninguno separó lo suficiente. El filtro regex de honestidad (paso 1) sigue activo porque es gratis y sin red, pero ya no hay paso 2 — el cliente LLM completo quedó en `calibracion/semantico_llm_experimento.py` por si se quiere retomar con otro prompt o modelo.
+- **Calibración sobre n=60, no sobre el dataset completo de jueces**: los números de accuracy/EER/matriz de confusión son sobre la propia muestra de calibración (train, n=60 de 282 disponibles) — no hay garantía de que se mantengan igual sobre las llamadas reales del reto.
 - **Contrato del body sin confirmar**: se aceptan varios nombres de campo candidatos (ver [Contrato del endpoint](#contrato-del-endpoint)) y, si el body no es JSON reconocible, se intenta como base64 crudo directo — a falta de confirmación de los organizadores sobre el formato exacto que usa el evaluador real. Es una medida de máxima permisividad tomada por falta de tiempo para confirmar el schema, no un contrato validado.
 
 ## Estructura del repo
@@ -111,11 +109,10 @@ detect-altur/
 ├── app/                        # servicio (no tocado en esta limpieza)
 ├── calibracion/                # scripts y resultados de calibración, fuera del servicio
 │   ├── calibrar.py
-│   ├── calibrar_acustico_crudo.py
-│   ├── calibrar_acustico_debug.py
-│   ├── recalcular_acustico_todas.py
-│   ├── calibracion_acustico_crudo.json
-│   ├── calibracion_resultados_v2.jsonl
+│   ├── acustico_wav2vec.py           # señal acústica alternativa, probada y descartada
+│   ├── semantico_llm_experimento.py  # cliente LLM (paso 2 de semántico), probado y descartado
+│   ├── probar_semantico_openai.py    # prueba de semántico con OpenAI gpt-4o-mini
+│   ├── calibracion_resultados.jsonl  # datos crudos de la calibración final (n=60)
 │   └── requirements-calibracion.txt
 ├── requirements.txt
 ├── .env.example
