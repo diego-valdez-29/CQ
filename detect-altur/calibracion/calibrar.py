@@ -48,6 +48,12 @@ UMBRAL_ACTUAL = 0.5
 
 MUESTRA_POR_DEFECTO = 80
 SALIDA_POR_DEFECTO = Path(__file__).resolve().parent / "calibracion_resultados.jsonl"
+TOPE_POR_LLAMADA_S = 90.0
+FALLBACK_WHISPER = SenalScore(
+    nombre="semantico",
+    score=0.5,
+    detalle={"fallback": "timeout_whisper"},
+)
 
 
 def leer_manifest(ruta_manifest: Path, split: str) -> list[dict]:
@@ -75,6 +81,30 @@ def correr_detectores(detectores, canal_caller: np.ndarray, canal_callee: np.nda
         senal.nombre: senal.score
         for senal in (d.analizar(canal_caller, canal_callee, sr) for d in detectores)
     }
+
+
+def etiqueta_fallback_semantico(senal: SenalScore) -> str | None:
+    detalle = senal.detalle or {}
+    return detalle.get("fallback") or detalle.get("error")
+
+
+class TopePorLlamada(Exception):
+    """La llamada excedio TOPE_POR_LLAMADA_S y se omite."""
+
+
+def asegurar_dentro_de_tope(t0: float) -> None:
+    if time.time() - t0 > TOPE_POR_LLAMADA_S:
+        raise TopePorLlamada(f"excedio {TOPE_POR_LLAMADA_S:.0f}s")
+
+
+def clasificar_semantico(
+    detector: DetectorSemantico,
+    segmentos: list[dict] | None,
+    hasta_s: float | None = None,
+) -> SenalScore:
+    if segmentos is None:
+        return FALLBACK_WHISPER
+    return detector._clasificar_transcript(detector._texto_hasta(segmentos, hasta_s))
 
 
 def calcular_eer(y_true: np.ndarray, y_score: np.ndarray) -> float:
@@ -110,7 +140,8 @@ def recolectar_datos(filas: list[dict], audio_dir: Path, ruta_salida: Path, rein
     if not pendientes:
         return registros
 
-    detectores = [DetectorAcustico(), DetectorComportamiento(), DetectorSemantico()]
+    detectores_baratos = [DetectorAcustico(), DetectorComportamiento()]
+    detector_semantico = DetectorSemantico()
     modo_escritura = "a" if (registros and not reiniciar) else "w"
     archivo_salida = open(ruta_salida, modo_escritura)
 
@@ -127,16 +158,32 @@ def recolectar_datos(filas: list[dict], audio_dir: Path, ruta_salida: Path, rein
             canal_caller, canal_callee, sr = cargar_canales(str(ruta_audio))
             duracion_s = len(canal_caller) / sr
 
-            scores_full = correr_detectores(detectores, canal_caller, canal_callee, sr)
+            segmentos = detector_semantico._transcribir(canal_caller, sr)
+            asegurar_dentro_de_tope(t0)
+
+            senal_sem_full = clasificar_semantico(detector_semantico, segmentos)
+            scores_full = correr_detectores(detectores_baratos, canal_caller, canal_callee, sr)
+            scores_full["semantico"] = senal_sem_full.score
+            asegurar_dentro_de_tope(t0)
 
             scores_checkpoint = {}
             for checkpoint_s in CHECKPOINTS_S:
                 if duracion_s <= checkpoint_s:
                     continue
+                asegurar_dentro_de_tope(t0)
                 c_caller, c_callee = truncar(canal_caller, canal_callee, sr, checkpoint_s)
-                scores_checkpoint[f"{checkpoint_s:.0f}s"] = correr_detectores(
-                    detectores, c_caller, c_callee, sr
+                scores_cp = correr_detectores(detectores_baratos, c_caller, c_callee, sr)
+                senal_sem_cp = clasificar_semantico(
+                    detector_semantico, segmentos, hasta_s=checkpoint_s
                 )
+                scores_cp["semantico"] = senal_sem_cp.score
+                scores_checkpoint[f"{checkpoint_s:.0f}s"] = scores_cp
+        except TopePorLlamada as exc:
+            print(
+                f"  [{i}/{len(pendientes)}] {anon_id}: OMITIDA por tope "
+                f"{TOPE_POR_LLAMADA_S:.0f}s ({exc}), se sigue"
+            )
+            continue
         except Exception as exc:
             print(f"  [{i}/{len(pendientes)}] {anon_id}: FALLO ({exc!r}), se omite")
             continue
@@ -155,9 +202,12 @@ def recolectar_datos(filas: list[dict], audio_dir: Path, ruta_salida: Path, rein
         elapsed = time.time() - t0
         promedio = (time.time() - t_inicio) / i
         restante_s = promedio * (len(pendientes) - i)
+        fallback_sem = etiqueta_fallback_semantico(senal_sem_full)
+        extra_fallback = f" semantico={fallback_sem}" if fallback_sem else ""
         print(
             f"  [{i}/{len(pendientes)}] {anon_id} ({fila['label']}, {duracion_s:.0f}s) "
-            f"scores={scores_full} ({elapsed:.1f}s, ~{restante_s / 60:.1f}min restantes)"
+            f"scores={scores_full}{extra_fallback} "
+            f"({elapsed:.1f}s, ~{restante_s / 60:.1f}min restantes)"
         )
 
     archivo_salida.close()
