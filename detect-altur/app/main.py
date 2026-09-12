@@ -8,11 +8,25 @@ import tempfile
 import numpy as np
 import soundfile as sf
 from fastapi import FastAPI, HTTPException, Request, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.deteccion.comportamiento import DetectorComportamiento
 from app.deteccion.fusion import Fusion
 
 app = FastAPI(title="detect-altur")
+
+# Habilitar CORS para permitir peticiones desde el frontend web y dominios externos
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_origin_regex=r"https?://.*",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+)
 
 # DetectorAcustico y DetectorSemantico tienen peso 0.0 en Fusion, confirmado
 # en tres calibraciones independientes con datos reales (ver README.md) -- no
@@ -241,3 +255,24 @@ async def detect_dev(file: UploadFile):
         return analizar_wav(ruta_temporal)
     finally:
         os.remove(ruta_temporal)
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok", "service": "detect-altur", "ready": True}
+
+
+# Montar frontend estático si existe la carpeta
+_DIRECTORIO_FRONTEND = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "frontend")
+)
+if os.path.exists(_DIRECTORIO_FRONTEND):
+    app.mount("/static", StaticFiles(directory=_DIRECTORIO_FRONTEND), name="static")
+
+    @app.get("/")
+    async def index():
+        archivo_index = os.path.join(_DIRECTORIO_FRONTEND, "index.html")
+        if os.path.exists(archivo_index):
+            return FileResponse(archivo_index)
+        return {"status": "ok", "service": "detect-altur"}
+
