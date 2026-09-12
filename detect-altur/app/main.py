@@ -3,6 +3,7 @@ import binascii
 import os
 import tempfile
 
+import numpy as np
 import soundfile as sf
 from fastapi import FastAPI, HTTPException, UploadFile
 from pydantic import BaseModel, ConfigDict
@@ -24,6 +25,13 @@ fusion = Fusion(
     pesos={"acustico": 1.0, "comportamiento": 1.0, "semantico": 1.0},
     umbral=0.5,
 )
+
+# Checkpoints de decision secuencial, calibrados contra llamadas reales del
+# dataset (manifest.csv: duracion minima real = 61s). Si la confidence en un
+# checkpoint intermedio supera el umbral, se responde sin esperar mas audio;
+# el checkpoint final (fin de llamada) siempre decide, sin importar la confidence.
+CHECKPOINTS_S = (25.0, 40.0)
+UMBRAL_DECISION_TEMPRANA = 0.75  # punto de partida, ajustable
 
 # Nombre de campo del WAV en base64 aun no confirmado con los organizadores:
 # aceptamos varios candidatos hasta que el juez real nos diga cual usa.
@@ -50,17 +58,46 @@ def cargar_canales(ruta_audio: str):
     return canal_caller, canal_callee, sr
 
 
-def analizar_wav(ruta_temporal: str) -> dict:
-    canal_caller, canal_callee, sr = cargar_canales(ruta_temporal)
+def _evaluar(canal_caller: np.ndarray, canal_callee: np.ndarray, sr: int):
     senales = [
         detector.analizar(canal_caller, canal_callee, sr)
         for detector in detectores
     ]
-    resultado = fusion.combinar(senales)
+    return fusion.combinar(senales)
+
+
+def _respuesta(resultado, checkpoint: str, duracion_audio_usada_s: float, duracion_total_s: float) -> dict:
     return {
         "is_synthetic": resultado.is_synthetic,
         "confidence": resultado.confidence,
+        "detalle": {
+            "checkpoint": checkpoint,
+            "duracion_audio_usada_s": duracion_audio_usada_s,
+            "duracion_total_llamada_s": duracion_total_s,
+            "umbral_decision_temprana": UMBRAL_DECISION_TEMPRANA,
+        },
     }
+
+
+def decidir_secuencial(canal_caller: np.ndarray, canal_callee: np.ndarray, sr: int) -> dict:
+    duracion_total_s = len(canal_caller) / sr
+
+    for checkpoint_s in CHECKPOINTS_S:
+        if duracion_total_s <= checkpoint_s:
+            continue  # no hay suficiente audio todavia para este checkpoint
+
+        n_muestras = int(checkpoint_s * sr)
+        resultado = _evaluar(canal_caller[:n_muestras], canal_callee[:n_muestras], sr)
+        if resultado.confidence >= UMBRAL_DECISION_TEMPRANA:
+            return _respuesta(resultado, f"{checkpoint_s:.0f}s", checkpoint_s, duracion_total_s)
+
+    resultado = _evaluar(canal_caller, canal_callee, sr)
+    return _respuesta(resultado, "fin_de_llamada", duracion_total_s, duracion_total_s)
+
+
+def analizar_wav(ruta_temporal: str) -> dict:
+    canal_caller, canal_callee, sr = cargar_canales(ruta_temporal)
+    return decidir_secuencial(canal_caller, canal_callee, sr)
 
 
 @app.post("/detect")
