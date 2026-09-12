@@ -14,6 +14,11 @@ from app.dominio.modelos import SenalScore
 SPARK_BASE_URL = "http://100.122.49.1:8080/api"
 SPARK_MODEL = "uncensored"
 SPARK_TIMEOUT_S = 2.0
+LLM_TIMEOUT_PARED_S = 3.0
+
+WHISPER_TIMEOUT_MIN_S = 25.0
+WHISPER_TIMEOUT_MAX_S = 90.0
+WHISPER_TIMEOUT_FACTOR = 0.6
 
 PATRONES_HONESTOS = [
     r"no\s+s[ée]\b",
@@ -59,8 +64,8 @@ class DetectorSemantico:
     PASO 2: si el regex no encuentra nada (indeterminado/posible confabulacion),
     se clasifica con el LLM de la Spark.
 
-    PASO 3: si el LLM falla, da timeout o no se puede parsear, no truena:
-    score=0.5 con detalle={"error": "llm_no_disponible"}.
+    PASO 3: si Whisper/LLM falla, da timeout o no se puede parsear, no truena:
+    score=0.5 con detalle de fallback.
     """
 
     SR_WHISPER = 16000
@@ -70,6 +75,7 @@ class DetectorSemantico:
     def __init__(self):
         self._modelo_whisper = None
         self._patrones = [re.compile(p, re.IGNORECASE) for p in PATRONES_HONESTOS]
+        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 
     def _obtener_whisper(self) -> WhisperModel:
         if self._modelo_whisper is None:
@@ -78,14 +84,66 @@ class DetectorSemantico:
             )
         return self._modelo_whisper
 
-    def _transcribir(self, canal_caller: np.ndarray, sr: int) -> str:
+    @staticmethod
+    def _timeout_whisper_s(duracion_s: float) -> float:
+        return min(WHISPER_TIMEOUT_MAX_S, max(WHISPER_TIMEOUT_MIN_S, duracion_s * WHISPER_TIMEOUT_FACTOR))
+
+    def _recrear_executor(self) -> None:
+        self._executor.shutdown(wait=False)
+        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+
+    def _ejecutar_con_timeout(self, fn, timeout_s: float, *args):
+        future = self._executor.submit(fn, *args)
+        try:
+            return future.result(timeout=timeout_s)
+        except concurrent.futures.TimeoutError:
+            self._recrear_executor()
+            raise
+
+    def _preparar_audio(self, canal_caller: np.ndarray, sr: int) -> np.ndarray:
         audio = canal_caller.astype(np.float32)
         if sr != self.SR_WHISPER:
             audio = librosa.resample(audio, orig_sr=sr, target_sr=self.SR_WHISPER)
+        return audio
 
+    def _transcribir_sin_timeout(self, audio: np.ndarray) -> list[dict]:
         modelo = self._obtener_whisper()
-        segmentos, _ = modelo.transcribe(audio, language=self.WHISPER_IDIOMA)
-        return " ".join(seg.text.strip() for seg in segmentos).strip()
+        segmentos, _ = modelo.transcribe(
+            audio,
+            language=self.WHISPER_IDIOMA,
+            beam_size=1,
+            vad_filter=True,
+        )
+        return [
+            {
+                "start": float(seg.start),
+                "end": float(seg.end),
+                "text": seg.text.strip(),
+            }
+            for seg in segmentos
+        ]
+
+    def _transcribir(self, canal_caller: np.ndarray, sr: int) -> list[dict] | None:
+        """Transcribe el caller. Devuelve segmentos {start, end, text} o None si timeout."""
+        audio = self._preparar_audio(canal_caller, sr)
+        duracion_s = len(audio) / self.SR_WHISPER
+        try:
+            return self._ejecutar_con_timeout(
+                self._transcribir_sin_timeout,
+                self._timeout_whisper_s(duracion_s),
+                audio,
+            )
+        except concurrent.futures.TimeoutError:
+            return None
+
+    @staticmethod
+    def _texto_hasta(segmentos: list[dict], hasta_s: float | None = None) -> str:
+        partes = [
+            seg["text"]
+            for seg in segmentos
+            if seg["text"] and (hasta_s is None or seg["start"] < hasta_s)
+        ]
+        return " ".join(partes).strip()
 
     def _filtro_regex(self, transcript: str) -> str | None:
         for patron in self._patrones:
@@ -142,14 +200,7 @@ class DetectorSemantico:
             },
         )
 
-    def analizar(
-        self,
-        canal_caller: np.ndarray,
-        canal_callee: np.ndarray,
-        sr: int,
-    ) -> SenalScore:
-        transcript = self._transcribir(canal_caller, sr)
-
+    def _clasificar_transcript(self, transcript: str) -> SenalScore:
         if not transcript:
             return SenalScore(
                 nombre="semantico",
@@ -165,15 +216,30 @@ class DetectorSemantico:
                 detalle={"metodo": "regex_honesto", "match": match},
             )
 
-        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-        future = executor.submit(self._clasificar_con_llm, transcript)
         try:
-            return future.result(timeout=3)
+            return self._ejecutar_con_timeout(
+                self._clasificar_con_llm,
+                LLM_TIMEOUT_PARED_S,
+                transcript,
+            )
         except concurrent.futures.TimeoutError:
             return SenalScore(
                 nombre="semantico",
                 score=0.5,
                 detalle={"fallback": "timeout_pared"},
             )
-        finally:
-            executor.shutdown(wait=False)
+
+    def analizar(
+        self,
+        canal_caller: np.ndarray,
+        canal_callee: np.ndarray,
+        sr: int,
+    ) -> SenalScore:
+        segmentos = self._transcribir(canal_caller, sr)
+        if segmentos is None:
+            return SenalScore(
+                nombre="semantico",
+                score=0.5,
+                detalle={"fallback": "timeout_whisper"},
+            )
+        return self._clasificar_transcript(self._texto_hasta(segmentos))
