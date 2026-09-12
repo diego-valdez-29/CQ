@@ -1,0 +1,26 @@
+services:
+  # Servicio de la API FastAPI (detect-altur)
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: comoquieras_api
+    restart: always
+    ports:
+      - "${PORT:-8000}:8000"
+    environment:
+      - PORT=8000
+
+  # Servicio de Túnel Cloudflare (cloudflared)
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: comoquieras_tunnel
+    restart: always
+    depends_on:
+      - api
+    # Para túnel rápido sin token (subdominio .trycloudflare.com):
+    command: tunnel --url http://api:8000
+    # Si usas TUNNEL_TOKEN de Cloudflare Zero Trust, comenta la línea de arriba y descomenta las siguientes 3 líneas:
+    # environment:
+    #   - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+    # command: tunnel run
