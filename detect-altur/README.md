@@ -36,7 +36,7 @@ Respuesta:
 - **Comportamiento** (`app/deteccion/comportamiento.py`): mide qué tan *consistente* es el tiempo que tarda el caller en retomar el habla después de que el agente provoca un silencio largo o un atropello. Recuperación muy uniforme (std baja) se interpreta como sospechosa de máquina; un humano se recupera de forma más errática.
 - **Semántico** (`app/deteccion/semantico.py`): transcribe el canal del caller con Whisper y busca honestidad ante preguntas trampa (información que no existe). Si el transcript dice algo tipo "no sé"/"no tengo esa información" (regex), se resuelve como humano (`score=0.15`) sin llamar a ningún LLM. Si no, retorna directamente el score neutro (`score=0.5`) — **ya no llama a ningún LLM** (ver sección de calibración: la señal quedó con peso 0 en la fusión final). El cliente LLM (antes: la Spark, vía Tailscale) se conserva sin usar en `calibracion/semantico_llm_experimento.py`.
 
-**Fusión**: promedio ponderado de las tres señales (`app/deteccion/fusion.py`). Los pesos en producción son los de la **calibración final** (ver siguiente sección): `{acustico: 0.0, comportamiento: 1.0, semantico: 0.0}` con umbral `0.56`.
+**Fusión**: promedio ponderado de las tres señales (`app/deteccion/fusion.py`). Los pesos en producción son los de la **calibración final** (ver siguiente sección): `{acustico: 0.0, comportamiento: 1.0, semantico: 0.0}` con umbral `0.58` (recalibrado sobre split `val`; el umbral original de la calibración en `train` era `0.56`).
 
 **Decisión secuencial**: en vez de esperar la llamada completa, se evalúa en checkpoints de **25s** y **40s** de audio; si la confidence en un checkpoint cruza `UMBRAL_DECISION_TEMPRANA = 0.75`, se responde ahí sin esperar más. Si ningún checkpoint cruza el umbral, decide al final de la llamada.
 
@@ -46,7 +46,7 @@ Respuesta:
 
 ```
 pesos  = {"acustico": 0.0, "comportamiento": 1.0, "semantico": 0.0}
-umbral = 0.56
+umbral = 0.56  # calibrado sobre train; ver "Validación sobre split val" para el valor final (0.58)
 ```
 
 Con estos pesos, sobre la propia muestra de calibración:
@@ -64,11 +64,35 @@ Con los pesos de decisión temprana calibrados (`UMBRAL_DECISION_TEMPRANA = 0.75
 
 En resumen: `acústico` y `semántico` son señales **exploradas y descartadas con evidencia real**, no señales sin intentar — el pipeline final es deliberadamente más simple (una sola señal decisiva) que el diseño original de tres señales ponderadas por igual.
 
+### Validación sobre split val (71 llamadas, nunca usadas en calibración)
+
+El dataset del reto separa `manifest.csv` en `train` (282 llamadas) y `val` (71). Todas las calibraciones de arriba —pesos y umbral `0.56`— se hicieron exclusivamente sobre `train`; `val` nunca participó en ese ajuste. Correrlo sirve para saber si esos números sobreviven fuera de la muestra que los produjo (`calibracion/validar_val.py`).
+
+Con los pesos fijos (`comportamiento=1.0`) y el umbral original de `train` (`0.56`), evaluando las 71 llamadas de `val` directamente contra `DetectorComportamiento` + `Fusion`:
+
+- **Accuracy: 0.732** (vs. **0.833** en train — caída de 0.101, señal de cierto sobreajuste al split de calibración)
+- **EER: 0.267** (vs. **0.183** en train)
+
+Un barrido de umbral sobre las mismas 71 llamadas de `val` (0.30 a 0.70, paso 0.02) encontró que **0.58** maximiza accuracy en `val`:
+
+| Umbral | Origen | Accuracy en val |
+|---|---|---|
+| 0.56 | calibrado en train | 0.732 |
+| **0.58** | óptimo en val | **0.789** |
+
+La brecha entre **0.833** (train) y **0.789** (val, ya con el umbral recalibrado) no desaparece del todo recalibrando el umbral, y es la comparación honesta a quedarse: el umbral se ajustó con datos de `val`, pero los pesos (`comportamiento=1.0`, el resto en 0) y la señal misma se calibraron enteramente en `train` — `val` nunca influyó en esa parte. Por eso `0.789` es una estimación más realista de accuracy en datos no vistos que `0.833`, que sí puede estar inflado por sobreajuste al propio split de calibración. Con esta evidencia se actualizó el umbral de producción de `0.56` a **`0.58`** en `app/main.py`.
+
+Validación end-to-end vía HTTP real (`calibracion/validar_val_http.py`, POST real a `/detect` con las 71 llamadas de `val`, WAV codificado en base64, igual que un cliente real):
+
+- **Latencia**: media **3.49s**, p95 **4.52s**, máximo **5.13s** (n=71, **0 fallos**)
+
+Esto confirma en la práctica lo que predecía el diseño: sin Whisper en el camino, `/detect` responde en el orden de segundos (no de los 25-90s que tomaba la transcripción cuando `semántico` corría), medido con datos reales end-to-end y no solo estimado.
+
 ### Alcance real en producción
 
 `app/main.py` **ya no instancia ni llama a `DetectorAcustico` ni a `DetectorSemantico`** — ninguno de los dos corre en el camino de `/detect`, ni siquiera el filtro regex gratuito de semántico. Solo se ejecuta `DetectorComportamiento` (peso 1.0 en `Fusion`). Las clases de ambos detectores descartados siguen intactas en `app/deteccion/acustico.py` y `app/deteccion/semantico.py` — documentadas como señales exploradas, no borradas — simplemente fuera del camino de evaluación.
 
-El efecto directo es eliminar el costo de la transcripción con Whisper (los 25-90s por llamada de arriba) del tiempo de respuesta de `/detect`: `comportamiento` no depende de ningún modelo de ML, solo de la temporización de silencios/atropellos del audio, así que su costo es del orden de milisegundos por llamada. No tenemos, en este repo, una medición end-to-end de antes/después sobre `/detect` completo con datos reales (no se guardó ese tiempo en `calibracion_resultados.jsonl` ni en ninguna corrida registrada) — lo que sí está confirmado es el rango de 25-90s de Whisper como el componente dominante que ya no se paga.
+El efecto directo es eliminar el costo de la transcripción con Whisper (los 25-90s por llamada de arriba) del tiempo de respuesta de `/detect`: `comportamiento` no depende de ningún modelo de ML, solo de la temporización de silencios/atropellos del audio, así que su costo es del orden de milisegundos por llamada. La medición end-to-end real sobre `/detect` (ver "Validación sobre split val" arriba: `calibracion/validar_val_http.py`, n=71, 0 fallos) confirma esto en la práctica: latencia media de **3.49s**, p95 de **4.52s**, máximo de **5.13s** — muy por debajo de los 25-90s que tomaba solo la transcripción con Whisper cuando `semántico` corría en el camino.
 
 ## Cómo correrlo
 
@@ -102,10 +126,11 @@ Pendiente de definir cómo se expone la URL pública para que los jueces la llam
 
 ## Limitaciones conocidas
 
-- **Una sola señal decisiva**: con `acustico` y `semantico` en peso 0, la clasificación final depende enteramente de `comportamiento`. Está calibrada y validada contra n=60 reales (accuracy 0.833, EER 0.183), pero es una sola fuente de evidencia — no hay redundancia si esa señal falla o se comporta distinto en el dataset real de los jueces.
+- **Una sola señal decisiva**: con `acustico` y `semantico` en peso 0, la clasificación final depende enteramente de `comportamiento`. Es una sola fuente de evidencia — no hay redundancia si esa señal falla o se comporta distinto en el dataset real de los jueces.
+- **Accuracy real esperado más cercano a 0.79 que a 0.83**: los pesos y la señal se calibraron sobre train (n=60, accuracy 0.833, EER 0.183); sobre val (n=71, nunca usado en esa calibración) la accuracy cae a 0.732 con el umbral original, señal de cierto sobreajuste al split de calibración. Recalibrar solo el umbral (0.56 → 0.58, el valor ya en producción) recupera parte de esa caída (accuracy 0.789 en val), pero no toda — ver "Validación sobre split val". `0.789` es la estimación más honesta de accuracy en datos no vistos.
 - **Señal acústica descartada, no arreglada**: tanto la heurística MFCC (`app/deteccion/acustico.py`) como la alternativa wav2vec2 (`calibracion/acustico_wav2vec.py`) se probaron con datos reales y no separaron de forma confiable en telefonía de 8kHz. El código sigue corriendo en el pipeline (con peso 0, no afecta el resultado) por si se quiere reintentar más adelante con otro enfoque.
 - **Señal semántica descartada, no arreglada**: se probó tanto el LLM de la Spark como OpenAI `gpt-4o-mini`; ninguno separó lo suficiente. El filtro regex de honestidad (paso 1) sigue activo porque es gratis y sin red, pero ya no hay paso 2 — el cliente LLM completo quedó en `calibracion/semantico_llm_experimento.py` por si se quiere retomar con otro prompt o modelo.
-- **Calibración sobre n=60, no sobre el dataset completo de jueces**: los números de accuracy/EER/matriz de confusión son sobre la propia muestra de calibración (train, n=60 de 282 disponibles) — no hay garantía de que se mantengan igual sobre las llamadas reales del reto.
+- **Umbral recalibrado sobre val, pero solo el umbral**: el barrido de `0.58` se hizo sobre las mismas 71 llamadas de `val` que ahora sirven de "conjunto de prueba" — técnicamente ese umbral ya no es 100% independiente de los datos que se usan para reportarlo. Los pesos y la señal siguen calibrados solo en train, que es donde está el sobreajuste real.
 - **Contrato del body sin confirmar**: se aceptan varios nombres de campo candidatos (ver [Contrato del endpoint](#contrato-del-endpoint)) y, si el body no es JSON reconocible, se intenta como base64 crudo directo — a falta de confirmación de los organizadores sobre el formato exacto que usa el evaluador real. Es una medida de máxima permisividad tomada por falta de tiempo para confirmar el schema, no un contrato validado.
 
 ## Estructura del repo

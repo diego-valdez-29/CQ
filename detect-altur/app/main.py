@@ -24,8 +24,13 @@ detectores = [
 ]
 
 fusion = Fusion(
+    # umbral recalibrado de 0.56 a 0.58: un barrido sobre split val (71
+    # llamadas que nunca participaron en la calibracion original de pesos ni
+    # umbral) encontro que 0.58 maximiza accuracy sobre val (0.789 vs 0.732
+    # con 0.56) -- ver calibracion/validar_val.py y README.md ("Estado
+    # honesto de calibracion").
     pesos={"acustico": 0.0, "comportamiento": 1.0, "semantico": 0.0},
-    umbral=0.56,
+    umbral=0.58,
 )
 
 # Checkpoints de decision secuencial, calibrados contra llamadas reales del
