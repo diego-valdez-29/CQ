@@ -6,11 +6,19 @@ Detecta si el *caller* de una llamada telefónica es una persona real o una voz 
 
 `POST /detect` — ruta que califica el reto.
 
-Recibe JSON con el audio de la llamada codificado en base64. Como el nombre exacto del campo no está confirmado con los organizadores, el endpoint acepta cualquiera de estos nombres (usa el primero que encuentre, en este orden):
+**No se pudo confirmar con los organizadores el schema exacto del body**, así que el endpoint es deliberadamente permisivo con el formato de entrada y acepta varias formas de mandar el WAV en base64:
 
-```
-audio_base64, audio, wav_base64, data
-```
+1. **JSON con alguno de estos nombres de campo** (case-insensitive — no importa si llega `audio_base64`, `Audio_Base64` o `AUDIOBASE64`; se usa el primero que encuentre, en este orden):
+
+   ```
+   audio_base64, audio, wav_base64, wav, data, file, audioBase64, audio_data, base64_audio, file_base64
+   ```
+
+2. **Body crudo como string base64 directo**, sin envolver en JSON: si el `Content-Type` de la request no es `application/json`, o si el body no parsea como JSON válido, el endpoint toma el body completo tal cual y lo intenta decodificar directamente como base64 (por si Altur manda el WAV como texto plano).
+
+Si ninguna de las dos formas produce un base64 válido, responde `422`:
+- con el detalle de qué campos acepta y qué keys llegaron, si se encontró un JSON pero ningún campo coincidió;
+- con `"base64 invalido: ..."` si se encontró un candidato (de un campo o del body crudo) pero no decodifica como base64 válido.
 
 El WAV debe venir en 2 canales: **canal 0 = caller** (la persona/voz a clasificar) y **canal 1 = agente** (el bot de Altur, conocido, no se evalúa). Si el WAV viene mono, ambos canales se toman como el mismo audio.
 
@@ -19,8 +27,6 @@ Respuesta:
 ```json
 {"is_synthetic": true, "confidence": 0.83}
 ```
-
-Si no se encuentra ningún campo base64 válido, responde `422` con el detalle de qué campos acepta y qué keys llegaron.
 
 `POST /detect-dev` — variante solo para desarrollo local: recibe el audio como `multipart/form-data` (`file=@audio.wav`) en vez de base64. No es la ruta que evalúan los jueces.
 
@@ -96,7 +102,7 @@ Pendiente de definir cómo se expone la URL pública para que los jueces la llam
 - **Señal de comportamiento sin calibrar**: `ESCALA_NORMALIZACION_STD` es un valor de partida sin ajustar contra el dataset real; en la validación satura en 0.0 para la gran mayoría de llamadas de ambas clases.
 - **Pesos de fusión en producción no son los calibrados**: `app/main.py` sigue usando el placeholder `1/1/1` con umbral `0.5`, no los pesos que salen de `calibrar_pesos()`. Aplicar los pesos calibrados de esta muestra (que ponen todo el peso en semántico) sería sobreajustar a n=30 con la Spark mayormente caída — no se recomienda sin recalibrar con la Spark disponible.
 - **Decisión secuencial (checkpoints 25s/40s) sin validar con pesos finales**: en la única corrida de calibración disponible, la decisión temprana nunca se disparó (0/30). No se sabe si dispara de forma razonable con los pesos que realmente corran en el juez.
-- **Contrato del campo base64 sin confirmar**: se aceptan varios nombres candidatos (`audio_base64`, `audio`, `wav_base64`, `data`) a falta de confirmación de los organizadores sobre cuál usa el evaluador real.
+- **Contrato del body sin confirmar**: se aceptan varios nombres de campo candidatos (ver [Contrato del endpoint](#contrato-del-endpoint)) y, si el body no es JSON reconocible, se intenta como base64 crudo directo — a falta de confirmación de los organizadores sobre el formato exacto que usa el evaluador real. Es una medida de máxima permisividad tomada por falta de tiempo para confirmar el schema, no un contrato validado.
 
 ## Estructura del repo
 

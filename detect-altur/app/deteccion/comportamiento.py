@@ -8,24 +8,43 @@ from app.dominio.modelos import SenalScore
 
 
 class DetectorComportamiento:
-    """Detector basado en la consistencia con la que el caller se recupera
-    de eventos de interrupcion provocados por el agente.
+    """Detector basado en tiempo_primera_habla: el timestamp (segundos) en
+    el que canal_caller habla por primera vez en toda la llamada.
 
-    El AGENTE (canal_callee, canal 1) provoca a proposito momentos de
-    interrupcion, silencio o atropello. Un humano se recupera de esos
-    eventos de forma instantanea pero errática (alta desviacion estandar
-    entre tiempos de recuperacion); una maquina se recupera de forma
-    consistente (baja desviacion), y esa consistencia es la señal de
-    sospecha de sintetico.
+    En n=30 llamadas reales (ver calibrar_comportamiento_crudo.py) esta
+    señal sola separa human/synthetic con |diff medias|=0.196 y
+    accuracy=76.7%: humanos tardan en promedio ~7.5s (bimodal: unos
+    responden rapido en 1-4s, otros lento en 8-10s), sinteticos tardan
+    ~10.2s y estan mucho mas agrupados (9.2-12.0s). Un tiempo alto es
+    señal de sospecha de sintetico.
+
+    std_recuperacion (consistencia con la que el caller se recupera de
+    eventos de interrupcion/silencio/atropello provocados por el AGENTE,
+    canal_callee) tambien se calcula y se reporta en detalle como
+    evidencia adicional, pero NO participa en el score numerico: en las
+    mismas 30 llamadas muestra separacion nula o invertida por si sola, y
+    combinarla con tiempo_primera_habla por promedio de z-scores diluyo la
+    señal fuerte (|diff medias| bajo de 0.196 a 0.080, accuracy de 76.7% a
+    60.0%) en vez de reforzarla. Ver _score_heuristico.
     """
 
     SR_VAD = 16000
     UMBRAL_SILENCIO_S = 0.6  # duracion minima para considerar "silencio largo repentino"
     VENTANA_BUSQUEDA_RECUPERACION_S = 5.0  # tope de busqueda de la siguiente habla del caller
-    ESCALA_NORMALIZACION_STD = 0.3  # INCIERTO: sin calibrar con dataset real de Altur
+
+    # Media/desviacion estandar reales de tiempo_primera_habla, calculadas
+    # sobre n=30 llamadas reales del manifest (train, semilla=0, 15 human +
+    # 15 synthetic) con calibrar_comportamiento_crudo.py. Poblacion completa
+    # (no separada por clase): en produccion no se conoce la clase de
+    # antemano, asi que el z-score usa estos estadisticos globales, mismo
+    # patron que DetectorAcustico._calcular_z_scores.
+    MEDIA_TIEMPO_PRIMERA_HABLA = 8.82000
+    STD_TIEMPO_PRIMERA_HABLA = 2.69003
 
     def __init__(self):
         self._modelo = None
+        self._media_tiempo_primera_habla = self.MEDIA_TIEMPO_PRIMERA_HABLA
+        self._std_tiempo_primera_habla = self.STD_TIEMPO_PRIMERA_HABLA
 
     def _obtener_modelo(self):
         if self._modelo is None:
@@ -92,13 +111,49 @@ class DetectorComportamiento:
                 recuperaciones.append(hueco)
         return recuperaciones
 
-    def _score_heuristico(self, std_recuperacion: float) -> float:
-        """Baja std (recuperacion uniforme) = mas sospechoso de maquina.
-
-        Normalizacion lineal simple, acotada a [0, 1]. La escala aun no esta
-        calibrada con el dataset real (ver ESCALA_NORMALIZACION_STD).
+    def _tiempo_primera_habla(self, habla_caller: list[dict]) -> float | None:
+        """Timestamp (segundos) del inicio del primer segmento de habla de
+        canal_caller en toda la llamada. No requiere VAD adicional: ya sale
+        de _timestamps_habla.
         """
-        score = 1.0 - (std_recuperacion / self.ESCALA_NORMALIZACION_STD)
+        if not habla_caller:
+            return None
+        return float(habla_caller[0]["start"])
+
+    def _calcular_z_score(self, tiempo_primera_habla: float) -> float:
+        return (
+            (tiempo_primera_habla - self._media_tiempo_primera_habla)
+            / self._std_tiempo_primera_habla
+        )
+
+    def _calcular_exponente(self, tiempo_primera_habla: float) -> float:
+        """z negado: tiempo_primera_habla por ENCIMA de la media (z
+        positivo) es sospechoso de maquina (sinteticos tardan mas en hablar
+        por primera vez), asi que se niega para que el exponente sea
+        negativo en ese caso y el sigmoid suba el score hacia 1.0.
+        """
+        return -self._calcular_z_score(tiempo_primera_habla)
+
+    def _score_heuristico(self, tiempo_primera_habla: float) -> float:
+        """tiempo_primera_habla alto = mas sospechoso de maquina.
+
+        Score basado UNICAMENTE en tiempo_primera_habla, normalizado por
+        z-score poblacional (mismo patron que
+        DetectorAcustico._score_heuristico).
+
+        # DECISION: std_recuperacion se probo combinada por promedio de
+        # z-scores ((z_std - z_tiempo) / 2) y diluyo la señal fuerte de
+        # tiempo_primera_habla: sola, tiempo_primera_habla da
+        # |diff medias|=0.196 y accuracy=76.7% (n=30, ver
+        # calibrar_comportamiento_crudo.py); combinada con std_recuperacion
+        # cae a |diff medias|=0.080 y accuracy=60.0%, porque std_recuperacion
+        # muestra separacion nula o invertida por si sola. Por eso el score
+        # final usa solo tiempo_primera_habla; std_recuperacion se sigue
+        # calculando y reportando en detalle como evidencia adicional, pero
+        # no entra al calculo numerico.
+        """
+        exponente = self._calcular_exponente(tiempo_primera_habla)
+        score = 1.0 / (1.0 + np.exp(exponente))
         return float(np.clip(score, 0.0, 1.0))
 
     def analizar(
@@ -132,15 +187,21 @@ class DetectorComportamiento:
 
         media = float(np.mean(recuperaciones))
         std = float(np.std(recuperaciones))
-        score = self._score_heuristico(std)
+        tiempo_primera_habla = self._tiempo_primera_habla(habla_caller)
+        score = self._score_heuristico(tiempo_primera_habla)
 
         return SenalScore(
             nombre="comportamiento",
             score=score,
             detalle={
-                "metodo": "consistencia_recuperacion_silero_vad",
+                "metodo": "tiempo_primera_habla_silero_vad",
                 "numero_eventos_detectados": len(eventos),
                 "media_recuperacion": media,
+                # std_recuperacion NO participa en el score (ver
+                # _score_heuristico): separacion nula o invertida por si
+                # sola en n=30 llamadas reales. Se reporta solo como
+                # evidencia adicional.
                 "std_recuperacion": std,
+                "tiempo_primera_habla": tiempo_primera_habla,
             },
         )

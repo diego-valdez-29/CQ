@@ -1,0 +1,572 @@
+[
+  {
+    "anon_id": "call_e69e8ba551e4",
+    "label": "human",
+    "score": 0.9999806880950928,
+    "duracion_habla_usada_s": 6.5,
+    "numero_segmentos_totales_llamada": 17,
+    "numero_segmentos_usados": 2,
+    "alcanzo_minimo": true,
+    "salida_cruda": [
+      {
+        "score": 0.9999806880950928,
+        "label": "fake"
+      },
+      {
+        "score": 1.9267767129349522e-05,
+        "label": "real"
+      }
+    ]
+  },
+  {
+    "anon_id": "call_e118b75d4937",
+    "label": "human",
+    "score": 0.9999812841415405,
+    "duracion_habla_usada_s": 6.6,
+    "numero_segmentos_totales_llamada": 18,
+    "numero_segmentos_usados": 3,
+    "alcanzo_minimo": true,
+    "salida_cruda": [
+      {
+        "score": 0.9999812841415405,
+        "label": "fake"
+      },
+      {
+        "score": 1.8762391846394166e-05,
+        "label": "real"
+      }
+    ]
+  },
+  {
+    "anon_id": "call_db5326bcb672",
+    "label": "human",
+    "score": 0.9999657869338989,
+    "duracion_habla_usada_s": 10.0,
+    "numero_segmentos_totales_llamada": 22,
+    "numero_segmentos_usados": 1,
+    "alcanzo_minimo": true,
+    "salida_cruda": [
+      {
+        "score": 0.9999657869338989,
+        "label": "fake"
+      },
+      {
+        "score": 3.4240627428516746e-05,
+        "label": "real"
+      }
+    ]
+  },
+  {
+    "anon_id": "call_0a9c546208d1",
+    "label": "human",
+    "score": 1.7271122487727553e-05,
+    "duracion_habla_usada_s": 8.3,
+    "numero_segmentos_totales_llamada": 8,
+    "numero_segmentos_usados": 2,
+    "alcanzo_minimo": true,
+    "salida_cruda": [
+      {
+        "score": 0.9999827146530151,
+        "label": "real"
+      },
+      {
+        "score": 1.7271122487727553e-05,
+        "label": "fake"
+      }
+    ]
+  },
+  {
+    "anon_id": "call_60ffdefc5f5a",
+    "label": "human",
+    "score": 0.9999796152114868,
+    "duracion_habla_usada_s": 5.0,
+    "numero_segmentos_totales_llamada": 18,
+    "numero_segmentos_usados": 4,
+    "alcanzo_minimo": true,
+    "salida_cruda": [
+      {
+        "score": 0.9999796152114868,
+        "label": "fake"
+      },
+      {
+        "score": 2.038972706941422e-05,
+        "label": "real"
+      }
+    ]
+  },
+  {
+    "anon_id": "call_893d552b156a",
+    "label": "human",
+    "score": 0.9999821186065674,
+    "duracion_habla_usada_s": 7.299999999999999,
+    "numero_segmentos_totales_llamada": 18,
+    "numero_segmentos_usados": 5,
+    "alcanzo_minimo": true,
+    "salida_cruda": [
+      {
+        "score": 0.9999821186065674,
+        "label": "fake"
+      },
+      {
+        "score": 1.7848304196377285e-05,
+        "label": "real"
+      }
+    ]
+  },
+  {
+    "anon_id": "call_b41c86402714",
+    "label": "human",
+    "score": 0.999957799911499,
+    "duracion_habla_usada_s": 6.9,
+    "numero_segmentos_totales_llamada": 11,
+    "numero_segmentos_usados": 3,
+    "alcanzo_minimo": true,
+    "salida_cruda": [
+      {
+        "score": 0.999957799911499,
+        "label": "fake"
+      },
+      {
+        "score": 4.214544242131524e-05,
+        "label": "real"
+      }
+    ]
+  },
+  {
+    "anon_id": "call_36640e327eaf",
+    "label": "human",
+    "score": 0.9999779462814331,
+    "duracion_habla_usada_s": 6.7,
+    "numero_segmentos_totales_llamada": 17,
+    "numero_segmentos_usados": 3,
+    "alcanzo_minimo": true,
+    "salida_cruda": [
+      {
+        "score": 0.9999779462814331,
+        "label": "fake"
+      },
+      {
+        "score": 2.2012942281435244e-05,
+        "label": "real"
+      }
+    ]
+  },
+  {
+    "anon_id": "call_4ac92327c83b",
+    "label": "human",
+    "score": 0.9999784231185913,
+    "duracion_habla_usada_s": 11.7,
+    "numero_segmentos_totales_llamada": 19,
+    "numero_segmentos_usados": 4,
+    "alcanzo_minimo": true,
+    "salida_cruda": [
+      {
+        "score": 0.9999784231185913,
+        "label": "fake"
+      },
+      {
+        "score": 2.1536929125431925e-05,
+        "label": "real"
+      }
+    ]
+  },
+  {
+    "anon_id": "call_3ca96b2dd5c4",
+    "label": "human",
+    "score": 0.9999809265136719,
+    "duracion_habla_usada_s": 6.8,
+    "numero_segmentos_totales_llamada": 28,
+    "numero_segmentos_usados": 5,
+    "alcanzo_minimo": true,
+    "salida_cruda": [
+      {
+        "score": 0.9999809265136719,
+        "label": "fake"
+      },
+      {
+        "score": 1.907485057017766e-05,
+        "label": "real"
+      }
+    ]
+  },
+  {
+    "anon_id": "call_ed041799aed9",
+    "label": "human",
+    "score": 0.9999804496765137,
+    "duracion_habla_usada_s": 6.300000000000001,
+    "numero_segmentos_totales_llamada": 22,
+    "numero_segmentos_usados": 2,
+    "alcanzo_minimo": true,
+    "salida_cruda": [
+      {
+        "score": 0.9999804496765137,
+        "label": "fake"
+      },
+      {
+        "score": 1.9536426407285035e-05,
+        "label": "real"
+      }
+    ]
+  },
+  {
+    "anon_id": "call_d557fa43925b",
+    "label": "human",
+    "score": 0.9999827146530151,
+    "duracion_habla_usada_s": 5.6000000000000005,
+    "numero_segmentos_totales_llamada": 17,
+    "numero_segmentos_usados": 3,
+    "alcanzo_minimo": true,
+    "salida_cruda": [
+      {
+        "score": 0.9999827146530151,
+        "label": "fake"
+      },
+      {
+        "score": 1.7253047190024517e-05,
+        "label": "real"
+      }
+    ]
+  },
+  {
+    "anon_id": "call_3adbf4ac0f30",
+    "label": "human",
+    "score": 0.9999804496765137,
+    "duracion_habla_usada_s": 5.8,
+    "numero_segmentos_totales_llamada": 26,
+    "numero_segmentos_usados": 2,
+    "alcanzo_minimo": true,
+    "salida_cruda": [
+      {
+        "score": 0.9999804496765137,
+        "label": "fake"
+      },
+      {
+        "score": 1.9565513866837136e-05,
+        "label": "real"
+      }
+    ]
+  },
+  {
+    "anon_id": "call_b5c4803ea37c",
+    "label": "human",
+    "score": 1.6813961337902583e-05,
+    "duracion_habla_usada_s": 5.6,
+    "numero_segmentos_totales_llamada": 9,
+    "numero_segmentos_usados": 2,
+    "alcanzo_minimo": true,
+    "salida_cruda": [
+      {
+        "score": 0.9999831914901733,
+        "label": "real"
+      },
+      {
+        "score": 1.6813961337902583e-05,
+        "label": "fake"
+      }
+    ]
+  },
+  {
+    "anon_id": "call_8a61615c9927",
+    "label": "human",
+    "score": 0.9999632835388184,
+    "duracion_habla_usada_s": 5.4,
+    "numero_segmentos_totales_llamada": 36,
+    "numero_segmentos_usados": 4,
+    "alcanzo_minimo": true,
+    "salida_cruda": [
+      {
+        "score": 0.9999632835388184,
+        "label": "fake"
+      },
+      {
+        "score": 3.672461389214732e-05,
+        "label": "real"
+      }
+    ]
+  },
+  {
+    "anon_id": "call_81b12145be34",
+    "label": "synthetic",
+    "score": 0.002432506997138262,
+    "duracion_habla_usada_s": 5.5,
+    "numero_segmentos_totales_llamada": 17,
+    "numero_segmentos_usados": 1,
+    "alcanzo_minimo": true,
+    "salida_cruda": [
+      {
+        "score": 0.9975675344467163,
+        "label": "real"
+      },
+      {
+        "score": 0.002432506997138262,
+        "label": "fake"
+      }
+    ]
+  },
+  {
+    "anon_id": "call_ed99e3ea3f0e",
+    "label": "synthetic",
+    "score": 1.887846337922383e-05,
+    "duracion_habla_usada_s": 7.2,
+    "numero_segmentos_totales_llamada": 15,
+    "numero_segmentos_usados": 2,
+    "alcanzo_minimo": true,
+    "salida_cruda": [
+      {
+        "score": 0.999981164932251,
+        "label": "real"
+      },
+      {
+        "score": 1.887846337922383e-05,
+        "label": "fake"
+      }
+    ]
+  },
+  {
+    "anon_id": "call_8c2ebe3761bb",
+    "label": "synthetic",
+    "score": 0.9999806880950928,
+    "duracion_habla_usada_s": 8.2,
+    "numero_segmentos_totales_llamada": 14,
+    "numero_segmentos_usados": 2,
+    "alcanzo_minimo": true,
+    "salida_cruda": [
+      {
+        "score": 0.9999806880950928,
+        "label": "fake"
+      },
+      {
+        "score": 1.9348015484865755e-05,
+        "label": "real"
+      }
+    ]
+  },
+  {
+    "anon_id": "call_dcdbcc7d70e4",
+    "label": "synthetic",
+    "score": 1.7314197975792922e-05,
+    "duracion_habla_usada_s": 7.8,
+    "numero_segmentos_totales_llamada": 17,
+    "numero_segmentos_usados": 1,
+    "alcanzo_minimo": true,
+    "salida_cruda": [
+      {
+        "score": 0.9999827146530151,
+        "label": "real"
+      },
+      {
+        "score": 1.7314197975792922e-05,
+        "label": "fake"
+      }
+    ]
+  },
+  {
+    "anon_id": "call_01c3806808d6",
+    "label": "synthetic",
+    "score": 0.999977707862854,
+    "duracion_habla_usada_s": 6.8999999999999995,
+    "numero_segmentos_totales_llamada": 14,
+    "numero_segmentos_usados": 2,
+    "alcanzo_minimo": true,
+    "salida_cruda": [
+      {
+        "score": 0.999977707862854,
+        "label": "fake"
+      },
+      {
+        "score": 2.2340727809933014e-05,
+        "label": "real"
+      }
+    ]
+  },
+  {
+    "anon_id": "call_d88d8e15e430",
+    "label": "synthetic",
+    "score": 1.7103611753555015e-05,
+    "duracion_habla_usada_s": 8.4,
+    "numero_segmentos_totales_llamada": 18,
+    "numero_segmentos_usados": 1,
+    "alcanzo_minimo": true,
+    "salida_cruda": [
+      {
+        "score": 0.9999829530715942,
+        "label": "real"
+      },
+      {
+        "score": 1.7103611753555015e-05,
+        "label": "fake"
+      }
+    ]
+  },
+  {
+    "anon_id": "call_a7df1d46e72b",
+    "label": "synthetic",
+    "score": 0.9995597004890442,
+    "duracion_habla_usada_s": 5.199999999999999,
+    "numero_segmentos_totales_llamada": 23,
+    "numero_segmentos_usados": 2,
+    "alcanzo_minimo": true,
+    "salida_cruda": [
+      {
+        "score": 0.9995597004890442,
+        "label": "fake"
+      },
+      {
+        "score": 0.0004402313206810504,
+        "label": "real"
+      }
+    ]
+  },
+  {
+    "anon_id": "call_c67ce09b3316",
+    "label": "synthetic",
+    "score": 1.684243034105748e-05,
+    "duracion_habla_usada_s": 5.3999999999999995,
+    "numero_segmentos_totales_llamada": 17,
+    "numero_segmentos_usados": 4,
+    "alcanzo_minimo": true,
+    "salida_cruda": [
+      {
+        "score": 0.9999831914901733,
+        "label": "real"
+      },
+      {
+        "score": 1.684243034105748e-05,
+        "label": "fake"
+      }
+    ]
+  },
+  {
+    "anon_id": "call_387c5493a07f",
+    "label": "synthetic",
+    "score": 1.6833213521749713e-05,
+    "duracion_habla_usada_s": 8.1,
+    "numero_segmentos_totales_llamada": 14,
+    "numero_segmentos_usados": 2,
+    "alcanzo_minimo": true,
+    "salida_cruda": [
+      {
+        "score": 0.9999831914901733,
+        "label": "real"
+      },
+      {
+        "score": 1.6833213521749713e-05,
+        "label": "fake"
+      }
+    ]
+  },
+  {
+    "anon_id": "call_f68d3459fdc7",
+    "label": "synthetic",
+    "score": 0.9828060269355774,
+    "duracion_habla_usada_s": 6.199999999999999,
+    "numero_segmentos_totales_llamada": 17,
+    "numero_segmentos_usados": 3,
+    "alcanzo_minimo": true,
+    "salida_cruda": [
+      {
+        "score": 0.9828060269355774,
+        "label": "fake"
+      },
+      {
+        "score": 0.01719404198229313,
+        "label": "real"
+      }
+    ]
+  },
+  {
+    "anon_id": "call_b0836ff3142a",
+    "label": "synthetic",
+    "score": 0.9998036026954651,
+    "duracion_habla_usada_s": 5.3,
+    "numero_segmentos_totales_llamada": 15,
+    "numero_segmentos_usados": 2,
+    "alcanzo_minimo": true,
+    "salida_cruda": [
+      {
+        "score": 0.9998036026954651,
+        "label": "fake"
+      },
+      {
+        "score": 0.00019644245912786573,
+        "label": "real"
+      }
+    ]
+  },
+  {
+    "anon_id": "call_ce6146a1c53e",
+    "label": "synthetic",
+    "score": 0.9999730587005615,
+    "duracion_habla_usada_s": 13.0,
+    "numero_segmentos_totales_llamada": 19,
+    "numero_segmentos_usados": 2,
+    "alcanzo_minimo": true,
+    "salida_cruda": [
+      {
+        "score": 0.9999730587005615,
+        "label": "fake"
+      },
+      {
+        "score": 2.6929901650873944e-05,
+        "label": "real"
+      }
+    ]
+  },
+  {
+    "anon_id": "call_ff4042587962",
+    "label": "synthetic",
+    "score": 0.9995749592781067,
+    "duracion_habla_usada_s": 5.5,
+    "numero_segmentos_totales_llamada": 15,
+    "numero_segmentos_usados": 3,
+    "alcanzo_minimo": true,
+    "salida_cruda": [
+      {
+        "score": 0.9995749592781067,
+        "label": "fake"
+      },
+      {
+        "score": 0.0004250213096383959,
+        "label": "real"
+      }
+    ]
+  },
+  {
+    "anon_id": "call_18bd3c505fd5",
+    "label": "synthetic",
+    "score": 1.7692564142635092e-05,
+    "duracion_habla_usada_s": 5.2,
+    "numero_segmentos_totales_llamada": 15,
+    "numero_segmentos_usados": 2,
+    "alcanzo_minimo": true,
+    "salida_cruda": [
+      {
+        "score": 0.9999823570251465,
+        "label": "real"
+      },
+      {
+        "score": 1.7692564142635092e-05,
+        "label": "fake"
+      }
+    ]
+  },
+  {
+    "anon_id": "call_8e6c9fa78a21",
+    "label": "synthetic",
+    "score": 1.6892552594072185e-05,
+    "duracion_habla_usada_s": 7.8,
+    "numero_segmentos_totales_llamada": 12,
+    "numero_segmentos_usados": 2,
+    "alcanzo_minimo": true,
+    "salida_cruda": [
+      {
+        "score": 0.9999830722808838,
+        "label": "real"
+      },
+      {
+        "score": 1.6892552594072185e-05,
+        "label": "fake"
+      }
+    ]
+  }
+]
