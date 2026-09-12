@@ -126,6 +126,49 @@ def generar_version(nombre: str, ruta_original: Path, ruta_salida: Path, anon_id
         raise ValueError(f"degradacion desconocida: {nombre}")
 
 
+def verificar_sanity(ruta_original: Path, anon_id: str) -> None:
+    """Chequeo previo a confiar en el resultado de robustez: confirma que
+    codec_agresivo y downsample_extra realmente modifican el audio (y no
+    devuelven una copia identica del original por algun error de ffmpeg,
+    ruta mal armada, etc). Compara bytes crudos del WAV y, si difieren,
+    tambien la RMS (potencia) de la senal para verificar que el cambio es
+    audible/medible y no solo un header distinto.
+    """
+    print(f"\n=== Verificacion de sanity (la degradacion se aplica de verdad?) ===")
+    print(f"Llamada de prueba: {anon_id} ({ruta_original})")
+
+    bytes_original = ruta_original.read_bytes()
+    data_orig, sr_orig = sf.read(ruta_original, always_2d=True)
+    rms_orig = np.sqrt(np.mean(data_orig.astype(np.float64) ** 2))
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        for nombre in ("codec_agresivo", "downsample_extra"):
+            ruta_degradada = Path(tmpdir) / f"{nombre}.wav"
+            generar_version(nombre, ruta_original, ruta_degradada, anon_id)
+            bytes_degradada = ruta_degradada.read_bytes()
+            identicos = bytes_original == bytes_degradada
+
+            print(f"\n  {nombre}:")
+            print(f"    bytes identicos al original: {identicos}")
+            print(f"    tamano original: {len(bytes_original)} bytes, degradado: {len(bytes_degradada)} bytes")
+
+            if identicos:
+                print("    ALERTA: el WAV degradado es byte-a-byte igual al original -- la degradacion NO se aplico")
+                continue
+
+            data_deg, sr_deg = sf.read(ruta_degradada, always_2d=True)
+            n = min(data_orig.shape[0], data_deg.shape[0])
+            rms_deg = np.sqrt(np.mean(data_deg[:n].astype(np.float64) ** 2))
+            rms_orig_n = np.sqrt(np.mean(data_orig[:n].astype(np.float64) ** 2))
+            diff_rel = (rms_deg - rms_orig_n) / rms_orig_n if rms_orig_n > 0 else float("nan")
+            db = 20 * np.log10(rms_deg / rms_orig_n) if rms_orig_n > 0 and rms_deg > 0 else float("nan")
+            print(f"    sample rate original: {sr_orig}Hz, degradado: {sr_deg}Hz")
+            print(f"    RMS original: {rms_orig_n:.8f}  RMS degradado: {rms_deg:.8f}")
+            print(f"    diferencia relativa: {diff_rel:+.4%}  ({db:+.2f} dB)")
+            if abs(diff_rel) < 1e-4:
+                print("    ALERTA: bytes distintos pero RMS practicamente identica (<0.01%) -- revisar si el cambio es real/audible")
+
+
 def evaluar_version(detector: DetectorComportamiento, ruta: Path) -> dict:
     canal_caller, canal_callee, sr = cargar_canales(str(ruta))
     senal = detector.analizar(canal_caller, canal_callee, sr)
@@ -193,6 +236,14 @@ def main() -> None:
 
     muestra = muestrear_balanceado(filas_val, args.muestra, args.semilla)
     print(f"Muestra balanceada: {len(muestra)} llamadas ({args.muestra // 2} human / {args.muestra // 2} synthetic)")
+
+    if muestra:
+        primera = muestra[0]
+        ruta_prueba = Path(args.audio_dir) / f"{primera['anon_id']}.wav"
+        if ruta_prueba.exists():
+            verificar_sanity(ruta_prueba, primera["anon_id"])
+        else:
+            print(f"Sanity check omitido: audio no encontrado en {ruta_prueba}")
 
     detector = DetectorComportamiento()
     registros = []
