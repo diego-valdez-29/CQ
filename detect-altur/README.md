@@ -57,12 +57,18 @@ Con estos pesos, sobre la propia muestra de calibración:
 
 Es decir: la señal que realmente decide es **comportamiento** — es la única que separó human/sintético de forma consistente y en la dirección correcta a través de las 3 corridas. `acústico` y `semántico` quedaron en **peso 0**, no porque no se probaran, sino porque se probaron con datos reales y no aportaron:
 
-- **Semántico**: se probó tanto con el LLM de la Spark (vía Tailscale) como con OpenAI `gpt-4o-mini` (`calibracion/probar_semantico_openai.py`). Ninguno de los dos separó humano/sintético lo suficiente como para justificar la latencia y el riesgo de una llamada de red síncrona dentro de `/detect`. El código del cliente LLM se conservó, sin usar, en `calibracion/semantico_llm_experimento.py`. En producción, esta señal ahora solo corre el filtro regex de honestidad (gratis, sin red) y cae a un score neutro (`0.5`) si no resuelve — ver `app/deteccion/semantico.py`.
+- **Semántico**: se probó tanto con el LLM de la Spark (vía Tailscale) como con OpenAI `gpt-4o-mini` (`calibracion/probar_semantico_openai.py`). Ninguno de los dos separó humano/sintético lo suficiente como para justificar la latencia y el riesgo de una llamada de red síncrona dentro de `/detect`. Además, la transcripción con Whisper por sí sola — antes incluso de llegar al LLM — resultó ser el cuello de botella real: tomaba entre **25 y 90 segundos por llamada** (rango que terminó fijado como el timeout de pared adaptativo de Whisper, `WHISPER_TIMEOUT_MIN_S`/`WHISPER_TIMEOUT_MAX_S` en `app/deteccion/semantico.py`, precisamente porque así de lento era en la práctica), la causa principal de la latencia total de `/detect`. El código (Whisper, regex, cliente LLM) se conserva intacto en `app/deteccion/semantico.py` y en `calibracion/semantico_llm_experimento.py`.
 - **Acústico**: la heurística MFCC (`app/deteccion/acustico.py`) y la alternativa wav2vec2 (`calibracion/acustico_wav2vec.py`) se probaron ambas contra datos reales; ninguna separó de forma confiable en telefonía de 8kHz (ver `calibracion/calibracion_acustico_wav2vec.json` y `calibracion/calibracion_comportamiento_crudo.json`).
 
 Con los pesos de decisión temprana calibrados (`UMBRAL_DECISION_TEMPRANA = 0.75`), el checkpoint temprano (25s/40s) se disparó en **3.3% de las llamadas** — comportamiento conservador y razonable: la decisión temprana existe pero no se dispara de forma agresiva, así que la mayoría de las llamadas se deciden con la señal completa.
 
 En resumen: `acústico` y `semántico` son señales **exploradas y descartadas con evidencia real**, no señales sin intentar — el pipeline final es deliberadamente más simple (una sola señal decisiva) que el diseño original de tres señales ponderadas por igual.
+
+### Alcance real en producción
+
+`app/main.py` **ya no instancia ni llama a `DetectorAcustico` ni a `DetectorSemantico`** — ninguno de los dos corre en el camino de `/detect`, ni siquiera el filtro regex gratuito de semántico. Solo se ejecuta `DetectorComportamiento` (peso 1.0 en `Fusion`). Las clases de ambos detectores descartados siguen intactas en `app/deteccion/acustico.py` y `app/deteccion/semantico.py` — documentadas como señales exploradas, no borradas — simplemente fuera del camino de evaluación.
+
+El efecto directo es eliminar el costo de la transcripción con Whisper (los 25-90s por llamada de arriba) del tiempo de respuesta de `/detect`: `comportamiento` no depende de ningún modelo de ML, solo de la temporización de silencios/atropellos del audio, así que su costo es del orden de milisegundos por llamada. No tenemos, en este repo, una medición end-to-end de antes/después sobre `/detect` completo con datos reales (no se guardó ese tiempo en `calibracion_resultados.jsonl` ni en ninguna corrida registrada) — lo que sí está confirmado es el rango de 25-90s de Whisper como el componente dominante que ya no se paga.
 
 ## Cómo correrlo
 

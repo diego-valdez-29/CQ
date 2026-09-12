@@ -9,17 +9,18 @@ import numpy as np
 import soundfile as sf
 from fastapi import FastAPI, HTTPException, Request, UploadFile
 
-from app.deteccion.acustico import DetectorAcustico
 from app.deteccion.comportamiento import DetectorComportamiento
 from app.deteccion.fusion import Fusion
-from app.deteccion.semantico import DetectorSemantico
 
 app = FastAPI(title="detect-altur")
 
+# DetectorAcustico y DetectorSemantico tienen peso 0.0 en Fusion, confirmado
+# en tres calibraciones independientes con datos reales (ver README.md) -- no
+# se llaman aqui. Sus clases se conservan intactas en sus archivos
+# (app/deteccion/acustico.py, app/deteccion/semantico.py) como señales
+# exploradas y descartadas con evidencia, no borradas.
 detectores = [
-    DetectorAcustico(),
     DetectorComportamiento(),
-    DetectorSemantico(),
 ]
 
 fusion = Fusion(
