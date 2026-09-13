@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+python-multipart
+soundfile
+numpy
+librosa
+torch
+silero-vad
+faster-whisper
+requests

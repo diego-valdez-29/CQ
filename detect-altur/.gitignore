@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+payload.jsoncalibracion/*.jsonl
+calibracion/*.jsonl
+calibracion/audio_estres/
+calibracion/modelos_aasist/
+calibracion/audio_estres/
+calibracion/modelos_aasist/

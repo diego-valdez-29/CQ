@@ -1,0 +1,23 @@
+services:
+  # Servicio de la API FastAPI (detect-altur)
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: comoquieras_api
+    restart: always
+    ports:
+      - "${PORT:-8000}:8000"
+    environment:
+      - PORT=8000
+
+  # Servicio de Túnel Cloudflare con Token propio y protocolo http2 inmediato
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: comoquieras_tunnel
+    restart: always
+    depends_on:
+      - api
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+    command: tunnel --protocol http2 run

@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Altur | Detección de Voz con IA (Canal 0 - 8kHz)</title>
+  <meta name="description" content="Detector de voces sintéticas generadas por IA vs personas reales en llamadas telefónicas sobre telefonía 8kHz y Canal 0." />
+  
+  <!-- Estilos y Fuentes -->
+  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2338bdf8'><path d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z'/></svg>" />
+</head>
+<body>
+
+  <!-- =========================================================================
+       1. Barra de Navegación Superior Estilo Altur
+       ========================================================================= -->
+  <nav class="navbar">
+    <div class="nav-container">
+      <div class="brand-group">
+        <div class="brand-logo-icon">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+          </svg>
+        </div>
+        <div>
+          <span class="brand-text-title">
+            Altur
+            <span class="brand-tag">Voice AI Guardian</span>
+          </span>
+        </div>
+      </div>
+
+      <div class="nav-actions">
+        <!-- Indicador de Salud de la API -->
+        <div class="api-status-pill" id="apiStatusContainer" title="Estado de conexión con la API /detect">
+          <span class="status-indicator-dot" id="apiStatusDot"></span>
+          <span id="apiStatusText">Verificando...</span>
+        </div>
+
+        <!-- Botón Configuración de API -->
+        <button type="button" class="btn-config-toggle" id="btnConfigToggle" aria-label="Configurar endpoint de API">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+          </svg>
+          API
+        </button>
+      </div>
+    </div>
+
+    <!-- Panel Desplegable de Configuración -->
+    <div class="config-drawer" id="configDrawer">
+      <div class="config-grid">
+        <div class="config-field">
+          <label for="inputApiUrl">Endpoint REST de Detección (POST)</label>
+          <input type="text" id="inputApiUrl" class="config-input" value="https://api-como-quieras.devs-dom.com/detect" placeholder="https://api-como-quieras.devs-dom.com/detect" />
+        </div>
+        <div class="config-field">
+          <label for="selectCorsMode">Modo CORS</label>
+          <select id="selectCorsMode" class="config-input">
+            <option value="cors" selected>cors (Habilitado / Cross-Origin)</option>
+            <option value="no-cors">no-cors (Opaque)</option>
+            <option value="same-origin">same-origin</option>
+          </select>
+        </div>
+        <div class="config-field">
+          <label for="selectCorsCredentials">Credenciales CORS</label>
+          <select id="selectCorsCredentials" class="config-input">
+            <option value="omit" selected>omit (Recomendado p/ URL externa)</option>
+            <option value="include">include (Cookies/Auth)</option>
+            <option value="same-origin">same-origin</option>
+          </select>
+        </div>
+        <div class="config-field">
+          <label for="inputChannel">Canal Evaluado</label>
+          <input type="number" id="inputChannel" class="config-input" value="0" readonly title="Canal 0 fijo para evaluación del receptor" />
+        </div>
+        <button type="button" class="btn-secondary" id="btnSaveConfig" style="height: 38px;">Guardar</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- =========================================================================
+       2. Contenedor Principal
+       ========================================================================= -->
+  <main class="main-wrapper">
+
+    <!-- Hero Header -->
+    <header class="hero-header">
+      <div class="hero-pill-tag">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/>
+        </svg>
+        Detección Telefónica de Voz en Tiempo Real
+      </div>
+      <h1 class="hero-title">Detector de Voces Sintéticas e IA</h1>
+      <p class="hero-subtitle">
+        Analiza streams de audio telefónico a <strong>8 kHz</strong> en <strong>Canal 0</strong> para discernir con alta precisión entre personas reales y agentes de inteligencia artificial.
+      </p>
+    </header>
+
+    <!-- =======================================================================
+         3. Simulador de Canales de Llamada Telefónica (Altur Call Card)
+         ======================================================================= -->
+    <section class="call-simulator-card">
+      <div class="channel-info-block">
+        <div class="channel-badges-row">
+          <span class="channel-pill channel-0">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
+            CANAL 0: EVALUADO
+          </span>
+          <span class="channel-pill channel-1">CANAL 1: AGENTE</span>
+        </div>
+        <h2 class="channel-title">Simulación de Interlocutor de Llamada</h2>
+        <p class="channel-desc">
+          El audio capturado por el micrófono o archivo se remuestrea automáticamente a <strong>8,000 Hz</strong> y se envía en base64 simulando el canal del receptor de la llamada telefónica.
+        </p>
+        <div class="telephony-spec-list">
+          <div class="spec-chip">Frecuencia: <span>8000 Hz</span></div>
+          <div class="spec-chip">Codificación: <span>16-bit PCM WAV</span></div>
+          <div class="spec-chip">Formato Payload: <span>Base64 JSON</span></div>
+        </div>
+      </div>
+
+      <div class="call-meta-panel">
+        <div class="call-meta-header">
+          <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">Topología de Llamada</span>
+          <span class="badge-result human" style="font-size: 0.7rem;">Silero VAD Activo</span>
+        </div>
+        <div class="call-participant-row">
+          <div class="participant-name">
+            <span class="participant-indicator receiver"></span>
+            Receptor / Interlocutor (Canal 0)
+          </div>
+          <div class="mini-wave-row">
+            <span></span><span></span><span></span><span></span><span></span>
+          </div>
+        </div>
+        <div class="call-participant-row">
+          <div class="participant-name">
+            <span class="participant-indicator agent"></span>
+            Agente Altur (Canal 1 - Referencia)
+          </div>
+          <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">Bot IA</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- =======================================================================
+         4. Grid de Captura de Audio y Resultados
+         ======================================================================= -->
+    <div class="workspace-grid">
+
+      <!-- Columna Izquierda: Captura y Controles -->
+      <section class="glass-card">
+        <div class="card-header-row">
+          <div class="card-title-group">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+            </div>
+            <h2 class="card-title">Captura de Audio Stream</h2>
+          </div>
+        </div>
+
+        <!--
+          FLAG DE DEMO (mañana): el bloque de "Llamada Simulada" (tab
+          Micrófono, visualizador/timer, selector de fuente TTS/mic y el
+          botón "Simular Llamada") queda oculto con la clase
+          "hidden-for-demo" (ver style.css) por dos motivos:
+            1. is_synthetic siempre cae en el fallback neutro (confidence=0.5)
+               sin importar el audio de entrada -- ver el comentario en
+               buildSimulatedCallWav (audio-processor.js) y la nota que
+               reemplaza.
+            2. Requiere esperar los ~153s completos del audio de referencia
+               del agente antes de producir cualquier resultado, inviable
+               para una demo en vivo con tiempo limitado.
+          El código sigue intacto: para reactivarlo, quitar "hidden-for-demo"
+          de estos elementos y volver a poner tabFile/fileDropArea en su
+          estado no-activo por defecto si se desea el flujo mixto original.
+        -->
+
+        <!-- Selector de Modos -->
+        <div class="mode-tabs">
+          <button type="button" class="tab-btn hidden-for-demo" id="tabMic">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/></svg>
+            Micrófono en Vivo
+          </button>
+          <button type="button" class="tab-btn active" id="tabFile">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>
+            Subir / Probar WAV
+          </button>
+        </div>
+
+        <!-- Área del Visualizador Canvas (solo usada por la Llamada Simulada, oculta para la demo) -->
+        <div class="visualizer-container hidden-for-demo">
+          <canvas id="visualizerCanvas" class="visualizer-canvas"></canvas>
+          <div class="visualizer-overlay-info">
+            <div class="recording-timer" id="recordingTimer">
+              <span class="timer-rec-dot" id="timerRecDot"></span>
+              <span id="timerText">00:00</span>
+            </div>
+            <div class="audio-rate-badge" id="audioRateBadge">8,000 Hz / Mono</div>
+          </div>
+        </div>
+
+        <!-- Zona Drag & Drop para archivos (flujo de demo, visible por defecto) -->
+        <div class="file-drop-area active" id="fileDropArea">
+          <svg class="file-drop-icon" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+          <p style="font-size: 0.9rem; font-weight: 500; margin-bottom: 0.25rem;">Arrastra aquí un archivo de audio WAV / MP3</p>
+          <p style="font-size: 0.78rem; color: var(--text-muted);">Se convertirá automáticamente al estándar telefónico de 8 kHz</p>
+        </div>
+        <input type="file" id="fileInput" accept="audio/*,.wav" style="display: none;" />
+
+        <!-- Fuente del canal 0 (caller) para la Llamada Simulada -- oculta para la demo, ver flag arriba -->
+        <div class="simulated-call-source-row hidden-for-demo" id="simulatedCallSourceRow" style="display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 0.75rem;">
+          <span class="badge-result experimental" style="align-self: flex-start;">Experimental</span>
+          <div class="experimental-warning-note">
+            <span>⚠️</span>
+            <span>
+              No representa el caso de uso real del reto: reproduce el turno completo del
+              agente y recién después arranca el turno del caller, sin turnos intercalados
+              reales. La señal <code style="color: var(--altur-cyan);">comportamiento</code>
+              necesita al menos 2 eventos de recuperación agente→caller distribuidos a lo
+              largo de la llamada para dar un veredicto real; con esta estructura secuencial
+              casi siempre cae en el fallback neutro (<code style="color: var(--altur-cyan);">confidence=0.5</code>,
+              <code style="color: var(--altur-cyan);">is_synthetic=false</code>) sin importar
+              si el audio del caller es humano o sintético. Útil para probar el formato WAV
+              estéreo enviado a <code style="color: var(--altur-cyan);">/detect</code>, no para
+              demostrar una detección real.
+            </span>
+          </div>
+          <div style="display: flex; gap: 1rem; font-size: 0.82rem;">
+            <label style="display: flex; align-items: center; gap: 0.35rem; cursor: pointer;">
+              <input type="radio" name="callerSource" id="sourceMic" value="mic" checked />
+              Hablar por micrófono
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.35rem; cursor: pointer;">
+              <input type="radio" name="callerSource" id="sourceTts" value="tts" />
+              Simular con audio generado por IA (TTS)
+            </label>
+          </div>
+          <div id="ttsFileRow" style="display: none; align-items: center; gap: 0.5rem;">
+            <button type="button" class="btn-secondary" id="btnChooseTtsFile" style="padding: 0.3rem 0.6rem; font-size: 0.78rem;">
+              Elegir archivo TTS
+            </button>
+            <span id="ttsFileLabel" style="font-size: 0.78rem; color: var(--text-muted);">Ningún archivo seleccionado</span>
+            <input type="file" id="ttsFileInput" accept="audio/*" style="display: none;" />
+          </div>
+        </div>
+
+        <!-- Botones de Acción -->
+        <div class="control-actions-group">
+          <button type="button" class="main-record-btn hidden-for-demo" id="btnRecord" title="Experimental: no representa el caso de uso real del reto (ver nota arriba)">
+            <svg viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="8"/>
+            </svg>
+            <span id="btnRecordText">Simular Llamada (Experimental)</span>
+          </button>
+
+          <div class="secondary-actions-row">
+            <button type="button" class="btn-secondary" id="btnSampleAudio">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v9.28c-.47-.17-.97-.28-1.5-.28C8.01 12 6 14.01 6 16.5S8.01 21 10.5 21c2.31 0 4.2-1.75 4.45-4H15V6h4V3h-7z"/></svg>
+              Probar Audio Muestra
+            </button>
+            <button type="button" class="btn-secondary" id="btnUploadWav">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>
+              Cargar Archivo Local
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Columna Derecha: Panel de Resultados -->
+      <section class="glass-card">
+        <div class="card-header-row">
+          <div class="card-title-group">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
+            </div>
+            <h2 class="card-title">Resultado de Detección</h2>
+          </div>
+        </div>
+
+        <div class="results-panel-container">
+
+          <!-- 1. Estado Idle (Esperando Audio) -->
+          <div class="result-idle-state" id="resultIdle">
+            <div class="idle-icon-ring">
+              <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+            </div>
+            <h3 style="font-size: 1.1rem; font-weight: 600;">Esperando Entrada de Audio</h3>
+            <p style="font-size: 0.85rem; color: var(--text-secondary); max-width: 320px;">
+              Graba tu voz con el botón o carga un audio para enviar la petición al endpoint <code style="color: var(--altur-cyan);">/detect</code>.
+            </p>
+          </div>
+
+          <!-- 2. Estado de Análisis en Proceso -->
+          <div class="result-analyzing-state" id="resultAnalyzing">
+            <div class="radar-spinner"></div>
+            <div class="analyzing-text-title">Analizando Patrones de Audio...</div>
+            <div class="analyzing-text-sub">Enviando WAV 8kHz en Base64 a la API de Altur...</div>
+          </div>
+
+          <!-- 3. Estado Activo (Resultado Recibido) -->
+          <div class="result-active-content" id="resultActive">
+
+            <!-- Banner de Veredicto (Humano vs IA) -->
+            <div class="verdict-hero-card" id="verdictCard">
+              <div class="verdict-icon-box" id="verdictIcon">
+                <!-- Icono dinámico -->
+              </div>
+              <div class="verdict-text-group">
+                <div class="verdict-classification-label" id="verdictLabel">Clasificación Confirmada</div>
+                <div class="verdict-headline" id="verdictTitle">PERSONA REAL</div>
+                <div class="verdict-detail-desc" id="verdictDesc">Voz biológica verificada</div>
+              </div>
+            </div>
+
+            <!-- Medidor Radial y Barra de Confianza -->
+            <div class="confidence-gauge-card">
+              <div class="gauge-circle-wrapper">
+                <svg class="gauge-svg" viewBox="0 0 86 86">
+                  <circle class="gauge-bg-circle" cx="43" cy="43" r="36"></circle>
+                  <circle class="gauge-fill-circle" id="gaugeCircle" cx="43" cy="43" r="36"></circle>
+                </svg>
+                <div class="gauge-center-text" id="gaugeText">0%</div>
+              </div>
+              <div class="gauge-info-group">
+                <div class="gauge-header-row">
+                  <span class="gauge-label">Nivel de Confianza (Confidence)</span>
+                  <span class="gauge-tier-pill" id="gaugeTierPill">Certeza Alta</span>
+                </div>
+                <div class="progress-bar-track">
+                  <div class="progress-bar-fill" id="progressBarFill"></div>
+                </div>
+                <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.4rem;">
+                  Precisión calculada por la fusión ponderada del detector.
+                </p>
+              </div>
+            </div>
+
+            <!-- Grid de Telemetría Técnica -->
+            <div class="telemetry-grid">
+              <div class="telemetry-item">
+                <span class="telemetry-label">Canal Analizado</span>
+                <span class="telemetry-val" id="metricChannel">0 (Receptor)</span>
+              </div>
+              <div class="telemetry-item">
+                <span class="telemetry-label">Frecuencia Muestreo</span>
+                <span class="telemetry-val" id="metricRate">8000 Hz</span>
+              </div>
+              <div class="telemetry-item">
+                <span class="telemetry-label">Latencia API</span>
+                <span class="telemetry-val" id="metricLatency">0 ms</span>
+              </div>
+              <div class="telemetry-item">
+                <span class="telemetry-label">Tamaño Payload</span>
+                <span class="telemetry-val" id="metricSize">0 KB</span>
+              </div>
+            </div>
+
+            <!-- Reproductor de Audio Incorporado -->
+            <div class="audio-playback-card">
+              <div class="audio-playback-header">
+                <span>Audio 8kHz Evaluado</span>
+                <span style="font-family: var(--font-mono); font-size: 0.75rem;">Linear PCM</span>
+              </div>
+              <audio id="audioPlayer" controls class="custom-audio-player"></audio>
+            </div>
+
+            <!-- Visor JSON de la Respuesta -->
+            <div class="json-inspector-box">
+              <div class="json-header">
+                <span>Respuesta HTTP /detect</span>
+                <button type="button" class="btn-copy-json" id="btnCopyJson">Copiar JSON</button>
+              </div>
+              <pre class="json-content-pre" id="jsonResponsePre">{}</pre>
+            </div>
+
+          </div>
+
+        </div>
+      </section>
+
+    </div>
+
+    <!-- =======================================================================
+         5. Historial de Sesión y Auditoría
+         ======================================================================= -->
+    <section class="history-section">
+      <div class="history-card">
+        <div class="card-header-row">
+          <div class="card-title-group">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+            </div>
+            <h2 class="card-title">Registro de Auditoría de Detecciones</h2>
+          </div>
+          <div style="display: flex; gap: 0.5rem;">
+            <button type="button" class="btn-secondary" id="btnExportHistory" style="padding: 0.35rem 0.75rem; font-size: 0.78rem;">
+              Exportar JSON
+            </button>
+            <button type="button" class="btn-secondary" id="btnClearHistory" style="padding: 0.35rem 0.75rem; font-size: 0.78rem;">
+              Limpiar
+            </button>
+          </div>
+        </div>
+
+        <div class="history-table-container">
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th>Hora</th>
+                <th>Origen</th>
+                <th>Veredicto</th>
+                <th>Confianza</th>
+                <th>Latencia</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody id="historyTableBody">
+              <tr id="historyEmptyRow">
+                <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+                  No hay registros en esta sesión todavía. Realiza tu primer análisis arriba.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- =======================================================================
+         6. Footer
+         ======================================================================= -->
+    <footer class="footer-altur">
+      <div class="footer-links">
+        <a href="https://www.altur.io/es" target="_blank" rel="noopener noreferrer">Altur Oficial</a>
+        <a href="https://www.altur.io/es" target="_blank" rel="noopener noreferrer">Documentación</a>
+        <a href="http://localhost:8000/docs" target="_blank" rel="noopener noreferrer">API Swagger (/docs)</a>
+      </div>
+      <p>© Altur AI Voice Intelligence Platform — Solución de Detección de Voces Sintéticas</p>
+    </footer>
+
+  </main>
+
+  <!-- Scripts -->
+  <script src="audio-processor.js"></script>
+  <script src="visualizer.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
