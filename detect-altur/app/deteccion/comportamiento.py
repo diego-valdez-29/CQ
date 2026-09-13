@@ -58,23 +58,31 @@ class DetectorComportamiento:
                 pass
         return self._modelo
 
-    def _resamplear(self, audio: np.ndarray, sr: int) -> np.ndarray:
-        audio = audio.astype(np.float32)
+    def _resamplear(self, audio: np.ndarray, sr: int, max_segundos: float = 20.0) -> np.ndarray:
+        muestras_necesarias = int(max_segundos * sr)
+        audio_corte = audio[:muestras_necesarias].astype(np.float32)
         if sr == self.SR_VAD:
-            return audio
+            return audio_corte
         if sr == 8000:
-            return np.repeat(audio, 2)
-        return librosa.resample(audio, orig_sr=sr, target_sr=self.SR_VAD)
+            return np.repeat(audio_corte, 2)
+        return librosa.resample(audio_corte, orig_sr=sr, target_sr=self.SR_VAD)
 
     def _timestamps_habla(self, audio: np.ndarray) -> list[dict]:
-        max_muestras = int(35.0 * self.SR_VAD)
-        tensor = torch.from_numpy(audio[:max_muestras])
-        return get_speech_timestamps(
-            tensor,
-            self._obtener_modelo(),
-            sampling_rate=self.SR_VAD,
-            return_seconds=True,
-        )
+        modelo = self._obtener_modelo()
+        for corte_s in (6.0, 12.0, 18.0):
+            n_muestras = min(len(audio), int(corte_s * self.SR_VAD))
+            tensor = torch.from_numpy(audio[:n_muestras])
+            timestamps = get_speech_timestamps(
+                tensor,
+                modelo,
+                sampling_rate=self.SR_VAD,
+                return_seconds=True,
+            )
+            if timestamps:
+                return timestamps
+            if n_muestras >= len(audio):
+                break
+        return []
 
     def _detectar_eventos(
         self, habla_callee: list[dict], habla_caller: list[dict]
