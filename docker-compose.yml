@@ -11,16 +11,13 @@ services:
     environment:
       - PORT=8000
 
-  # Servicio de Túnel Cloudflare (cloudflared)
+  # Servicio de Túnel Cloudflare con Token propio y protocolo http2 inmediato
   tunnel:
     image: cloudflare/cloudflared:latest
     container_name: comoquieras_tunnel
     restart: always
     depends_on:
       - api
-    # Para túnel rápido sin token (subdominio .trycloudflare.com):
-    command: tunnel --url http://api:8000
-    # Si usas TUNNEL_TOKEN de Cloudflare Zero Trust, comenta la línea de arriba y descomenta las siguientes 3 líneas:
-    # environment:
-    #   - TUNNEL_TOKEN=${TUNNEL_TOKEN}
-    # command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+    command: tunnel --protocol http2 run

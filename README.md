@@ -1,55 +1,44 @@
-# detect-altur API + Docker + Cloudflare Tunnel
+# detect-altur API + Docker + Cloudflare Tunnel + Render
 
-API REST basada en **FastAPI** (`detect-altur`) para la detección de voz sintética vs. humana en llamadas telefónicas. Incluye soporte para **Docker Compose** y exposición pública mediante un túnel de Cloudflare (`cloudflared`).
+API REST basada en **FastAPI** (`detect-altur`) para la detección de voz sintética vs. humana en llamadas telefónicas.
 
----
-
-## 📁 Estructura del Proyecto
-
-```text
-.
-├── detect-altur/        # Código fuente de la API (FastAPI) y detectores
-├── audios/              # Muestras de audio para pruebas
-├── Dockerfile           # Construcción de la imagen Docker (Python 3.11 + libsndfile1 + ffmpeg)
-├── docker-compose.yml   # Orquestación de API FastAPI + Túnel Cloudflare
-├── .env.example         # Plantilla de variables de entorno
-└── .gitignore           # Archivos ignorados por Git
-```
+Soporta despliegue en **Render.com**, **Docker Compose** y exposición mediante **Túnel de Cloudflare** (`cloudflared`).
 
 ---
 
-## 🚀 Cómo Iniciar la Aplicación
+## 🌐 Cómo Desplegar en Render (render.com)
 
-### 1. Iniciar con Docker Compose (Modo Quick Tunnel)
-Por defecto, el túnel generará una URL pública temporal de tipo `https://xxxx.trycloudflare.com` sin requerir credenciales adicionales.
+### Opción A: Despliegue Automático con Blueprint (Recomendado)
+1. Entra a tu panel de **Render** (`dashboard.render.com`).
+2. Haz clic en **New +** -> **Blueprint**.
+3. Conecta tu repositorio de GitHub `diego-valdez-29/comoquieras`.
+4. Render detectará automáticamente el archivo `render.yaml` y creará el Web Service con Docker.
+5. Haz clic en **Apply**. ¡Y listo! Render desplegará tu API y te dará una URL pública tipo `https://detect-altur-api.onrender.com`.
+
+### Opción B: Despliegue Manual como Web Service
+1. En Render Dashboard, selecciona **New +** -> **Web Service**.
+2. Conecta tu repositorio de GitHub.
+3. Elige la opción **Docker** en el Runtime (usará el `Dockerfile` raíz).
+4. Elige el plano **Free** o Starter.
+5. Haz clic en **Create Web Service**.
+
+---
+
+## 🚀 Despliegue Local con Docker Compose
 
 ```bash
 docker compose up -d --build
 ```
 
-### 2. Ver la URL Pública del Túnel de Cloudflare
-Para obtener el enlace público generado por Cloudflare:
+- **API Local**: `http://localhost:8000/detect`
+- **Túnel Cloudflare Persistente**: `https://api-como-quieras.devs-dom.com/detect`
+
+---
+
+## 🧪 Ejemplo de llamada `POST /detect`
 
 ```bash
-docker compose logs -f tunnel
-```
-
-Verás una línea en los logs similar a:
-```text
-+-----------------------------------------------------------------------------------+
-| Your quick Tunnel has been created! Visit it at:                                  |
-| https://random-subdomain.trycloudflare.com                                        |
-+-----------------------------------------------------------------------------------+
-```
-
-### 3. Probar la API
-
-- **Local:** `http://localhost:8000/detect`
-- **Túnel Público:** `https://<tu-subdominio>.trycloudflare.com/detect`
-
-#### Ejemplo de llamada `POST /detect` (Base64)
-```bash
-curl -X POST http://localhost:8000/detect \
+curl -X POST https://tu-servicio.onrender.com/detect \
   -H "Content-Type: application/json" \
   -d "{\"audio_base64\": \"$(base64 -w0 audios/prueba.wav)\"}"
 ```
@@ -57,23 +46,7 @@ curl -X POST http://localhost:8000/detect \
 #### Respuesta de la API:
 ```json
 {
-  "is_synthetic": true,
-  "confidence": 0.8321
+  "is_synthetic": false,
+  "confidence": 0.5
 }
 ```
-
----
-
-## 🔑 Configurar Túnel con Dominio Propio (Cloudflare Zero Trust Token)
-
-Si cuentas con un token de túnel persistente en Cloudflare Zero Trust:
-
-1. Crea tu archivo `.env`:
-   ```bash
-   cp .env.example .env
-   ```
-2. Añade tu token a `.env`:
-   ```text
-   TUNNEL_TOKEN=tu_token_aqui
-   ```
-3. En `docker-compose.yml`, ajusta la sección del servicio `tunnel` desmarcando la opción de `tunnel run` y `TUNNEL_TOKEN`.

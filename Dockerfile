@@ -14,17 +14,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Directorio de trabajo
 WORKDIR /app
 
-# Copiar requirements e instalar dependencias
+# Copiar requirements e instalar dependencias usando el índice CPU ligero de PyTorch
 COPY detect-altur/requirements.txt ./requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
 
 # Copiar la aplicación
 COPY detect-altur /app/detect-altur
 
 WORKDIR /app/detect-altur
 
-# Exponer el puerto de la API (8000 por defecto)
+# Puerto dinámico (Render asigna $PORT automáticamente)
+ENV PORT=8000
 EXPOSE 8000
 
-# Comando para iniciar la aplicación con Uvicorn
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Comando para iniciar Uvicorn evaluando el puerto dinámico $PORT
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
