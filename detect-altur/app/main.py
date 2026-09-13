@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import tempfile
+import time
 
 import numpy as np
 import soundfile as sf
@@ -18,6 +19,14 @@ from app.deteccion.comportamiento import DetectorComportamiento
 from app.deteccion.fusion import Fusion
 
 app = FastAPI(title="detect-altur")
+
+@app.middleware("http")
+async def add_process_time_header(request: Request, call_next):
+    start_time = time.perf_counter()
+    response = await call_next(request)
+    process_time = time.perf_counter() - start_time
+    response.headers["X-Process-Time"] = f"{process_time:.3f}"
+    return response
 
 # Habilitar CORS para permitir peticiones desde el frontend web y dominios externos
 app.add_middleware(
@@ -243,7 +252,7 @@ async def detect_dev(file: UploadFile):
 @app.get("/api/health")
 @app.head("/api/health")
 async def health():
-    return {"status": "ok", "service": "detect-altur", "ready": True}
+    return {"status": "ok", "service": "detect-altur", "ready": True, "version": "2.0-speed"}
 
 
 # Montar frontend estático si existe la carpeta
