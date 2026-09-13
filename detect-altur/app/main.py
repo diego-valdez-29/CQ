@@ -11,6 +11,7 @@ from fastapi import FastAPI, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.requests import ClientDisconnect
 
 from app.deteccion.comportamiento import DetectorComportamiento
 from app.deteccion.fusion import Fusion
@@ -182,7 +183,10 @@ async def detect(request: Request):
     string base64 directamente (por si el WAV viene en base64 como texto
     plano, sin envolver en JSON). Ver README para el detalle.
     """
-    body_bytes = await request.body()
+    try:
+        body_bytes = await request.body()
+    except ClientDisconnect:
+        raise HTTPException(status_code=400, detail="Cliente desconectado antes de completar la peticion")
     content_type = request.headers.get("content-type", "")
     es_json_declarado = "application/json" in content_type.lower()
 
@@ -258,6 +262,9 @@ async def detect_dev(file: UploadFile):
 
 
 @app.get("/health")
+@app.head("/health")
+@app.get("/api/health")
+@app.head("/api/health")
 async def health():
     return {"status": "ok", "service": "detect-altur", "ready": True}
 
