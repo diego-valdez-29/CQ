@@ -1,5 +1,6 @@
 import base64
 import binascii
+import io
 import json
 import logging
 import os
@@ -93,14 +94,7 @@ def _buscar_campo_base64(payload: dict) -> str | None:
 
 
 def _decodificar_base64(texto: str) -> bytes:
-    """Decodifica un string base64, tolerando espacios/saltos de linea
-    (por si viene "wrapped"), pero rechazando cualquier otro caracter fuera
-    del alfabeto base64 - asi un body que no es base64 real (texto
-    arbitrario, JSON mal formado, etc.) falla aqui en vez de "decodificar"
-    basura silenciosamente.
-    """
-    limpio = "".join(texto.split())
-    return base64.b64decode(limpio, validate=True)
+    return base64.b64decode(texto, validate=False)
 
 
 def _error_campo_base64(keys_recibidas: list[str]) -> HTTPException:
@@ -155,16 +149,6 @@ def _respuesta(resultado, checkpoint: str, duracion_audio_usada_s: float, duraci
 
 def decidir_secuencial(canal_caller: np.ndarray, canal_callee: np.ndarray, sr: int) -> dict:
     duracion_total_s = len(canal_caller) / sr
-
-    for checkpoint_s in CHECKPOINTS_S:
-        if duracion_total_s <= checkpoint_s:
-            continue  # no hay suficiente audio todavia para este checkpoint
-
-        n_muestras = int(checkpoint_s * sr)
-        resultado = _evaluar(canal_caller[:n_muestras], canal_callee[:n_muestras], sr)
-        if resultado.confidence >= UMBRAL_DECISION_TEMPRANA:
-            return _respuesta(resultado, f"{checkpoint_s:.0f}s", checkpoint_s, duracion_total_s)
-
     resultado = _evaluar(canal_caller, canal_callee, sr)
     return _respuesta(resultado, "fin_de_llamada", duracion_total_s, duracion_total_s)
 
@@ -227,14 +211,7 @@ async def detect(request: Request):
     except (binascii.Error, ValueError) as exc:
         raise HTTPException(status_code=422, detail=f"base64 invalido: {exc}")
 
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-        tmp.write(audio_bytes)
-        ruta_temporal = tmp.name
-
-    try:
-        resultado_completo = analizar_wav(ruta_temporal)
-    finally:
-        os.remove(ruta_temporal)
+    resultado_completo = analizar_wav(io.BytesIO(audio_bytes))
 
     # Contrato oficial del reto: la respuesta debe ser EXCLUSIVAMENTE
     # {"is_synthetic": bool, "confidence": float}, sin campos extra (riesgo

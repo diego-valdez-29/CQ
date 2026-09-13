@@ -45,20 +45,30 @@ class DetectorComportamiento:
         self._modelo = None
         self._media_tiempo_primera_habla = self.MEDIA_TIEMPO_PRIMERA_HABLA
         self._std_tiempo_primera_habla = self.STD_TIEMPO_PRIMERA_HABLA
+        # Pre-cargar el modelo en __init__ para evitar cold-start en la primera peticion HTTP
+        self._obtener_modelo()
 
     def _obtener_modelo(self):
         if self._modelo is None:
             self._modelo = load_silero_vad()
+            try:
+                dummy_audio = torch.zeros(16000, dtype=torch.float32)
+                get_speech_timestamps(dummy_audio, self._modelo, sampling_rate=16000)
+            except Exception:
+                pass
         return self._modelo
 
     def _resamplear(self, audio: np.ndarray, sr: int) -> np.ndarray:
         audio = audio.astype(np.float32)
         if sr == self.SR_VAD:
             return audio
+        if sr == 8000:
+            return np.repeat(audio, 2)
         return librosa.resample(audio, orig_sr=sr, target_sr=self.SR_VAD)
 
     def _timestamps_habla(self, audio: np.ndarray) -> list[dict]:
-        tensor = torch.from_numpy(audio)
+        max_muestras = int(35.0 * self.SR_VAD)
+        tensor = torch.from_numpy(audio[:max_muestras])
         return get_speech_timestamps(
             tensor,
             self._obtener_modelo(),
@@ -163,31 +173,19 @@ class DetectorComportamiento:
         sr: int,
     ) -> SenalScore:
         audio_caller = self._resamplear(canal_caller, sr)
-        audio_callee = self._resamplear(canal_callee, sr)
-
         habla_caller = self._timestamps_habla(audio_caller)
-        habla_callee = self._timestamps_habla(audio_callee)
+        tiempo_primera_habla = self._tiempo_primera_habla(habla_caller)
 
-        eventos = self._detectar_eventos(habla_callee, habla_caller)
-        recuperaciones = self._tiempos_recuperacion(eventos, habla_caller)
-
-        if len(recuperaciones) < 2:
+        if tiempo_primera_habla is None:
             return SenalScore(
                 nombre="comportamiento",
                 score=0.5,
                 detalle={
-                    "error": "eventos_insuficientes",
-                    "numero_eventos_detectados": len(eventos),
-                    "media_recuperacion": (
-                        float(np.mean(recuperaciones)) if recuperaciones else None
-                    ),
-                    "std_recuperacion": None,
+                    "error": "habla_caller_no_detectada",
+                    "tiempo_primera_habla": None,
                 },
             )
 
-        media = float(np.mean(recuperaciones))
-        std = float(np.std(recuperaciones))
-        tiempo_primera_habla = self._tiempo_primera_habla(habla_caller)
         score = self._score_heuristico(tiempo_primera_habla)
 
         return SenalScore(
@@ -195,13 +193,6 @@ class DetectorComportamiento:
             score=score,
             detalle={
                 "metodo": "tiempo_primera_habla_silero_vad",
-                "numero_eventos_detectados": len(eventos),
-                "media_recuperacion": media,
-                # std_recuperacion NO participa en el score (ver
-                # _score_heuristico): separacion nula o invertida por si
-                # sola en n=30 llamadas reales. Se reporta solo como
-                # evidencia adicional.
-                "std_recuperacion": std,
                 "tiempo_primera_habla": tiempo_primera_habla,
             },
         )
